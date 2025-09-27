@@ -1,8 +1,5 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'file_system_service.dart';
-import 'comic_book.dart';
-import 'thumbnail_preloader.dart';
 import 'comic_viewer.dart';
 import 'read_status_service.dart';
 
@@ -25,14 +22,12 @@ class _FileBrowserState extends State<FileBrowser> {
   List<FileSystemItem> _items = [];
   bool _isLoading = false;
   String? _error;
-  late ThumbnailPreloader _thumbnailPreloader;
   ReadStatusService? _readStatusService;
   Map<String, bool> _readStatusCache = {};
 
   @override
   void initState() {
     super.initState();
-    _thumbnailPreloader = ThumbnailPreloader();
     _currentPath = widget.rootPath;
     _initReadStatusService();
     _loadDirectory();
@@ -66,8 +61,6 @@ class _FileBrowserState extends State<FileBrowser> {
           _error = null;
         });
 
-        // Start preloading thumbnails for comic books
-        _thumbnailPreloader.preloadThumbnails(items);
         // Load read status for comic books
         _loadReadStatus();
       }
@@ -144,24 +137,6 @@ class _FileBrowserState extends State<FileBrowser> {
             onPressed: _loadDirectory,
             tooltip: 'Refresh',
           ),
-          // Show thumbnail progress
-          ListenableBuilder(
-            listenable: _thumbnailPreloader,
-            builder: (context, child) {
-              if (_thumbnailPreloader.isPreloading) {
-                return SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    value: _thumbnailPreloader.progress,
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-          const SizedBox(width: 8),
         ],
       ),
     );
@@ -214,86 +189,53 @@ class _FileBrowserState extends State<FileBrowser> {
         }
       },
       trailing: item.isComicBook
-          ? _buildComicBookTrailing(item)
+          ? _buildReadBadge(item)
           : null,
     );
   }
 
-  Widget _buildComicBookTrailing(FileSystemItem item) {
+  Widget _buildReadBadge(FileSystemItem item) {
     final isRead = _readStatusCache[item.fullPath] ?? false;
 
-    return FutureBuilder<ComicBookThumbnail?>(
-      future: _loadThumbnail(item.fullPath),
-      builder: (context, snapshot) {
-        Widget thumbnailWidget;
-
-        if (snapshot.hasData && snapshot.data != null) {
-          thumbnailWidget = Container(
-            width: 40,
-            height: 60,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
-              image: DecorationImage(
-                image: MemoryImage(snapshot.data!.data),
-                fit: BoxFit.cover,
+    if (isRead) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.green,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.check,
+              size: 16,
+              color: Colors.white,
+            ),
+            SizedBox(width: 4),
+            Text(
+              'Read',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          );
-        } else {
-          thumbnailWidget = const SizedBox(width: 40, height: 60);
-        }
-
-        // Add read badge if the comic has been read
-        if (isRead) {
-          return Stack(
-            children: [
-              thumbnailWidget,
-              Positioned(
-                top: 2,
-                right: 2,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.check,
-                    size: 12,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          );
-        }
-
-        return thumbnailWidget;
-      },
-    );
-  }
-
-  Future<ComicBookThumbnail?> _loadThumbnail(String filePath) async {
-    try {
-      final comic = ComicBook(filePath);
-      final thumbnailData = await comic.thumbnail;
-      comic.dispose();
-
-      if (thumbnailData != null) {
-        return ComicBookThumbnail(data: thumbnailData);
-      }
-    } catch (e) {
-      // Ignore thumbnail loading errors
+          ],
+        ),
+      );
     }
-    return null;
+
+    return const SizedBox.shrink();
   }
+
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
@@ -307,63 +249,15 @@ class _FileBrowserState extends State<FileBrowser> {
 
   @override
   void dispose() {
-    _thumbnailPreloader.dispose();
     super.dispose();
   }
 
-  Widget _buildThumbnailProgress() {
-    return ListenableBuilder(
-      listenable: _thumbnailPreloader,
-      builder: (context, child) {
-        if (!_thumbnailPreloader.isPreloading) {
-          return const SizedBox.shrink();
-        }
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: Theme.of(context).colorScheme.surfaceContainerHigh,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  value: _thumbnailPreloader.progress,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Generating thumbnails... ${_thumbnailPreloader.processedFiles}/${_thumbnailPreloader.totalFiles}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (_thumbnailPreloader.currentFile.isNotEmpty)
-                Expanded(
-                  child: Text(
-                    _thumbnailPreloader.currentFile,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    textAlign: TextAlign.end,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         _buildPathBar(),
-        _buildThumbnailProgress(),
         Expanded(
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
@@ -454,8 +348,3 @@ class _FileBrowserState extends State<FileBrowser> {
   }
 }
 
-class ComicBookThumbnail {
-  final Uint8List data;
-
-  ComicBookThumbnail({required this.data});
-}

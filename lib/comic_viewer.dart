@@ -26,6 +26,8 @@ class _ComicViewerState extends State<ComicViewer>
   double _currentScale = 1.0;
   bool _isZoomed = false;
   ReadStatusService? _readStatusService;
+  bool _isWideImage = false;
+  ScrollController? _horizontalScrollController;
 
   late AnimationController _controlsAnimationController;
   late Animation<double> _controlsAnimation;
@@ -73,6 +75,7 @@ class _ComicViewerState extends State<ComicViewer>
   @override
   void dispose() {
     _transformationController.removeListener(_onTransformationChanged);
+    _horizontalScrollController?.dispose();
     _comicBook.dispose();
     _controlsAnimationController.dispose();
     _transformationController.dispose();
@@ -123,6 +126,7 @@ class _ComicViewerState extends State<ComicViewer>
         _currentIndex++;
       });
       _animateToScale(1.0); // Reset zoom when changing pages
+      _analyzeImageDimensions(); // Check if new image is wide
       _triggerPreload();
       _checkIfLastPageReached();
     }
@@ -134,6 +138,7 @@ class _ComicViewerState extends State<ComicViewer>
         _currentIndex--;
       });
       _animateToScale(1.0); // Reset zoom when changing pages
+      _analyzeImageDimensions(); // Check if new image is wide
       _triggerPreload();
     }
   }
@@ -144,6 +149,7 @@ class _ComicViewerState extends State<ComicViewer>
         _currentIndex = index;
       });
       _animateToScale(1.0); // Reset zoom when changing pages
+      _analyzeImageDimensions(); // Check if new image is wide
       _triggerPreload();
       _checkIfLastPageReached();
     }
@@ -198,76 +204,290 @@ class _ComicViewerState extends State<ComicViewer>
     }
   }
 
+  void _analyzeImageDimensions() {
+    // Temporarily disable wide image analysis for performance
+    // This feature can be re-implemented later with a Flutter-based approach
+    final wasWideImage = _isWideImage;
+    _isWideImage = false;
+
+    if (wasWideImage) {
+      _horizontalScrollController?.dispose();
+      _horizontalScrollController = null;
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
   Widget _buildImageViewer() {
     if (_images.isEmpty) return const SizedBox.shrink();
 
-    return InteractiveViewer(
-      transformationController: _transformationController,
-      minScale: 0.5,
-      maxScale: 4.0,
-      panEnabled: true,
-      scaleEnabled: true,
-      child: Container(
+    return FutureBuilder<Uint8List>(
+      future: _images[_currentIndex].data,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          // Analyze image first
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _analyzeImageDimensions();
+          });
+
+          // Build appropriate viewer based on image type
+          if (_isWideImage) {
+            return _buildWideImageViewer(snapshot.data!);
+          } else {
+            return _buildNormalImageViewer(snapshot.data!);
+          }
+        } else if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.broken_image,
+                  size: 64,
+                  color: Colors.white70,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Failed to load image',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Page ${_currentIndex + 1} of ${_images.length}',
+                  style: TextStyle(color: Colors.white54),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (_currentIndex > 0)
+                      ElevatedButton.icon(
+                        onPressed: _previousPage,
+                        icon: Icon(Icons.arrow_back),
+                        label: Text('Previous'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white24,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    const SizedBox(width: 16),
+                    if (_currentIndex < _images.length - 1)
+                      ElevatedButton.icon(
+                        onPressed: _nextPage,
+                        icon: Icon(Icons.arrow_forward),
+                        label: Text('Next'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white24,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        } else {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: Colors.white70,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildNormalImageViewer(Uint8List imageData) {
+    return GestureDetector(
+      // Handle taps directly without overlaying on InteractiveViewer
+      onTapUp: !_isZoomed ? (details) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final tapX = details.globalPosition.dx;
+
+        if (tapX < screenWidth / 3) {
+          // Left third - previous page
+          if (_currentIndex > 0) {
+            _previousPage();
+          } else {
+            _toggleControls();
+          }
+        } else if (tapX > screenWidth * 2 / 3) {
+          // Right third - next page
+          if (_currentIndex < _images.length - 1) {
+            _nextPage();
+          } else {
+            _toggleControls();
+          }
+        } else {
+          // Center third - toggle controls
+          _toggleControls();
+        }
+      } : null,
+      onDoubleTapDown: !_isZoomed ? (details) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final tapX = details.globalPosition.dx;
+
+        // Only allow double-tap zoom in center third
+        if (tapX >= screenWidth / 3 && tapX <= screenWidth * 2 / 3) {
+          _animateToScale(2.0);
+        }
+      } : null,
+      child: InteractiveViewer(
+        transformationController: _transformationController,
+        minScale: 0.5,
+        maxScale: 4.0,
+        panEnabled: true,
+        scaleEnabled: true,
+        child: Container(
           width: double.infinity,
           height: double.infinity,
           color: Colors.black,
-          child: FutureBuilder<Uint8List>(
-            future: _images[_currentIndex].data,
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                return Image.memory(
-                  snapshot.data!,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 64,
-                            color: Colors.white70,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Failed to load image',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              } else if (snapshot.hasError) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.white70,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error: ${snapshot.error}',
-                        style: TextStyle(color: Colors.white70),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                );
-              } else {
-                return const Center(
-                  child: CircularProgressIndicator(
+          child: Image.memory(
+            imageData,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (context, error, stackTrace) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.broken_image,
+                    size: 64,
                     color: Colors.white70,
                   ),
-                );
-              }
+                  const SizedBox(height: 16),
+                  Text(
+                    'Corrupted image',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Page ${_currentIndex + 1} of ${_images.length}',
+                    style: TextStyle(color: Colors.white54),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_currentIndex > 0)
+                        ElevatedButton.icon(
+                          onPressed: _previousPage,
+                          icon: Icon(Icons.arrow_back),
+                          label: Text('Previous'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white24,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      const SizedBox(width: 16),
+                      if (_currentIndex < _images.length - 1)
+                        ElevatedButton.icon(
+                          onPressed: _nextPage,
+                          icon: Icon(Icons.arrow_forward),
+                          label: Text('Next'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white24,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWideImageViewer(Uint8List imageData) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: Colors.black,
+      child: SingleChildScrollView(
+        controller: _horizontalScrollController,
+        scrollDirection: Axis.horizontal,
+        child: InteractiveViewer(
+          transformationController: _transformationController,
+          minScale: 0.5,
+          maxScale: 4.0,
+          panEnabled: false, // Disable pan for wide images to avoid conflict with scrolling
+          scaleEnabled: true,
+          child: Image.memory(
+            imageData,
+            fit: BoxFit.fitHeight, // Fit to screen height, allow horizontal scrolling
+            filterQuality: FilterQuality.high,
+            errorBuilder: (context, error, stackTrace) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.broken_image,
+                      size: 64,
+                      color: Colors.white70,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Corrupted image',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Page ${_currentIndex + 1} of ${_images.length}',
+                      style: TextStyle(color: Colors.white54),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_currentIndex > 0)
+                          ElevatedButton.icon(
+                            onPressed: _previousPage,
+                            icon: Icon(Icons.arrow_back),
+                            label: Text('Previous'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white24,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        const SizedBox(width: 16),
+                        if (_currentIndex < _images.length - 1)
+                          ElevatedButton.icon(
+                            onPressed: _nextPage,
+                            icon: Icon(Icons.arrow_forward),
+                            label: Text('Next'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white24,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
             },
           ),
         ),
+      ),
     );
   }
 
@@ -407,6 +627,37 @@ class _ComicViewerState extends State<ComicViewer>
                             ),
                           ),
                         ],
+                        // Wide image indicator
+                        if (_isWideImage) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.swap_horiz,
+                                  size: 10,
+                                  color: Colors.white,
+                                ),
+                                SizedBox(width: 2),
+                                Text(
+                                  'Scroll',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -461,86 +712,54 @@ class _ComicViewerState extends State<ComicViewer>
   }
 
   Widget _buildTapZones() {
-    // When zoomed, disable tap zones to allow panning
-    if (_isZoomed) {
+    // When zoomed or viewing wide image, disable tap zones to allow panning/scrolling
+    if (_isZoomed || _isWideImage) {
       return const SizedBox.shrink();
     }
 
+    // Use a GestureDetector that wraps the entire area but only handles taps, not scale
     return Positioned.fill(
-      child: Row(
-        children: [
-          // Left tap zone - previous page
-          Expanded(
-            flex: 1,
-            child: GestureDetector(
-              onTap: () {
-                if (_currentIndex > 0) {
-                  _previousPage();
-                } else {
-                  // At first page, just toggle controls
-                  _toggleControls();
-                }
-              },
-              onHorizontalDragEnd: (details) {
-                if (details.primaryVelocity != null) {
-                  if (details.primaryVelocity! > 100) {
-                    // Swipe right - previous page
-                    _previousPage();
-                  }
-                }
-              },
-              child: Container(
-                color: Colors.transparent,
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ),
-          // Center tap zone - toggle controls
-          Expanded(
-            flex: 1,
-            child: GestureDetector(
-              onTap: _toggleControls,
-              onDoubleTap: () {
-                // Smart zoom: if not zoomed, zoom to 2x, if zoomed, reset
-                if (_isZoomed) {
-                  _animateToScale(1.0);
-                } else {
-                  _animateToScale(2.0);
-                }
-              },
-              child: Container(
-                color: Colors.transparent,
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ),
-          // Right tap zone - next page
-          Expanded(
-            flex: 1,
-            child: GestureDetector(
-              onTap: () {
-                if (_currentIndex < _images.length - 1) {
-                  _nextPage();
-                } else {
-                  // At last page, just toggle controls
-                  _toggleControls();
-                }
-              },
-              onHorizontalDragEnd: (details) {
-                if (details.primaryVelocity != null) {
-                  if (details.primaryVelocity! < -100) {
-                    // Swipe left - next page
-                    _nextPage();
-                  }
-                }
-              },
-              child: Container(
-                color: Colors.transparent,
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ),
-        ],
+      child: GestureDetector(
+        behavior: HitTestBehavior.deferToChild,
+        onTapUp: (details) {
+          final screenWidth = MediaQuery.of(context).size.width;
+          final tapX = details.globalPosition.dx;
+
+          if (tapX < screenWidth / 3) {
+            // Left third - previous page
+            if (_currentIndex > 0) {
+              _previousPage();
+            } else {
+              _toggleControls();
+            }
+          } else if (tapX > screenWidth * 2 / 3) {
+            // Right third - next page
+            if (_currentIndex < _images.length - 1) {
+              _nextPage();
+            } else {
+              _toggleControls();
+            }
+          } else {
+            // Center third - toggle controls
+            _toggleControls();
+          }
+        },
+        onDoubleTapDown: (details) {
+          final screenWidth = MediaQuery.of(context).size.width;
+          final tapX = details.globalPosition.dx;
+
+          // Only allow double-tap zoom in center third
+          if (tapX >= screenWidth / 3 && tapX <= screenWidth * 2 / 3) {
+            if (_isZoomed) {
+              _animateToScale(1.0);
+            } else {
+              _animateToScale(2.0);
+            }
+          }
+        },
+        child: Container(
+          color: Colors.transparent,
+        ),
       ),
     );
   }
@@ -580,7 +799,6 @@ class _ComicViewerState extends State<ComicViewer>
               : Stack(
                   children: [
                     _buildImageViewer(),
-                    _buildTapZones(),
                     _buildTopControls(),
                     _buildBottomControls(),
                   ],

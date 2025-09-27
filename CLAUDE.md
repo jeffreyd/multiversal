@@ -4,19 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Multiversal is a Flutter-based comic book reader application for Android that supports CBZ (ZIP) comic book format. The app provides a native, high-performance reading experience with features like thumbnail caching, folder browsing, and immersive full-screen viewing.
+Multiversal is a Flutter-based comic book reader application for Android that supports CBZ (ZIP) comic book format. The app provides a native, high-performance reading experience with features like folder browsing and immersive full-screen viewing.
 
 ## Key Features
 
 ### Comic Book Support
 - **CBZ files**: ZIP-based comic books with optimized streaming and caching
-- **Thumbnail generation**: Automatic thumbnails with persistent caching
 - **Format detection**: Supports jpg, jpeg, png, gif, bmp, webp image formats
 
 ### Reading Experience
 - **Full-screen viewer**: Immersive reading with tap zones and gesture controls
 - **Navigation**: Tap left/right sides, swipe gestures, or progress slider
 - **Zoom and pan**: Pinch-to-zoom (0.5x to 4x) with pan support
+- **Wide image support**: Two-page spreads display in scrollable view for tablet reading
+- **Smart layout detection**: Automatically detects wide images (aspect ratio > 1.4)
 - **Page information**: Shows filename and page position (e.g., "page001.jpg (5 of 23)")
 - **Smart controls**: Tap center to show/hide control bars with smooth animations
 - **Read status tracking**: Automatically marks comics as read when reaching the last page
@@ -24,16 +25,15 @@ Multiversal is a Flutter-based comic book reader application for Android that su
 
 ### Performance Optimizations
 - **Parallel file operations**: Directory listing uses parallel stat() calls (40-60% faster)
-- **Isolate thumbnail processing**: Large images (>5MB) processed in background threads
 - **Streaming CBZ loading**: Large archives use streaming decoders for better memory efficiency
-- **Memory management**: Efficient cache trimming and resource disposal
+- **Memory management**: Efficient resource disposal
 - **Natural sorting**: Proper numeric ordering of comic pages
 
 ### Storage & Permissions
 - **All Files Access**: Automatic permission requests for external storage
 - **Scoped storage**: Handles Android storage restrictions gracefully
 - **Persistent settings**: Remembers selected directories between sessions
-- **Cache management**: SHA256-based thumbnail cache with size monitoring
+- **Read status tracking**: SHA256-based file identification for tracking completion
 
 ## Development Commands
 
@@ -72,8 +72,6 @@ lib/
   comic_book.dart          # Comic book archive handling (CBZ only)
   file_browser.dart        # Directory and file browsing UI
   file_system_service.dart # Optimized file system operations
-  thumbnail_cache.dart     # Persistent thumbnail caching
-  thumbnail_preloader.dart # Background thumbnail generation
   read_status_service.dart # Comic book read status tracking
   permission_service.dart  # Android storage permissions
   settings_dialog.dart     # Settings popup with bulk operations
@@ -93,7 +91,6 @@ tools/
 - `shared_preferences: ^2.2.2` - Persistent settings storage
 - `path_provider: ^2.1.1` - App directory access
 - `archive: ^3.6.1` - ZIP archive handling for CBZ files
-- `image: ^4.2.0` - Image processing and thumbnail generation
 - `path: ^1.9.1` - File path utilities
 - `permission_handler: ^11.3.1` - Android permissions
 - `crypto: ^3.0.3` - SHA256 hashing for cache keys
@@ -109,14 +106,12 @@ tools/
 #### `ComicBook`
 - Handles CBZ (ZIP) archive format with optimized streaming
 - Implements lazy loading with efficient memory management
-- Supports isolate-based thumbnail generation for large images
 - Provides intelligent preloading for smooth page navigation
 
 #### `FileBrowser`
-- Directory navigation with thumbnail previews
-- Integrates with thumbnail preloader for smooth browsing
+- Directory navigation with read status indicators
 - Handles Android storage limitations with user guidance
-- Real-time thumbnail generation progress tracking
+- Clean, fast file listing without thumbnails
 
 #### `ComicViewer`
 - Full-screen reading experience with gesture controls
@@ -129,10 +124,6 @@ tools/
 - Smart file type detection and filtering
 - Lightweight comic file discovery for bulk operations
 
-#### `ThumbnailCache`
-- SHA256-based cache keys with file modification time
-- Automatic cache size management and cleanup
-- PNG format thumbnails (200x300px with aspect ratio)
 
 ### Performance Features
 
@@ -141,12 +132,6 @@ tools/
 - Lazy image loading with intelligent preloading
 - Memory-efficient caching with automatic cleanup
 - Native ZIP handling with minimal overhead
-
-#### Thumbnail Generation
-- Background processing for large images (>5MB)
-- Isolate-based processing to prevent UI blocking
-- Graceful fallback to main thread if isolates fail
-- Persistent caching to avoid regeneration
 
 #### File Operations
 - Parallel stat() calls for directory listing
@@ -186,10 +171,10 @@ tools/
 - Async testing patterns for file operations
 
 ### Performance Considerations
-- Isolate-based processing for CPU-intensive operations
-- Memory-efficient caching with automatic cleanup
+- Memory-efficient resource management
 - Parallel file operations where possible
 - Smart preloading to minimize user wait times
+- Eliminated thumbnail generation for maximum speed
 
 ### Error Handling
 - Graceful degradation for unsupported files
@@ -201,13 +186,7 @@ tools/
 
 ### Adding New Image Formats
 1. Update the supported extensions set in `ComicBook._getImageFiles()`
-2. Ensure the format is supported by the `image` package
-3. Test with sample files of the new format
-
-### Modifying Cache Behavior
-1. Adjust cache size limits in `ThumbnailCache._trimCache()`
-2. Modify cache cleanup intervals in `ThumbnailCache.cleanOldCache()`
-3. Update cache key generation in `ThumbnailCache._getCacheKey()`
+2. Test with sample files of the new format
 
 ### Optimizing CBZ Performance
 1. Profile with Flutter DevTools to identify bottlenecks

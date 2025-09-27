@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'file_browser.dart';
@@ -295,16 +296,12 @@ class _FolderSelectionPageState extends State<FolderSelectionPage> {
             onPressed: _showSettings,
             tooltip: 'Settings',
           ),
-          IconButton(
-            icon: const Icon(Icons.bug_report),
-            onPressed: () => DebugHelper.testCommonDirectories(context),
-            tooltip: 'Test directories',
-          ),
-          IconButton(
-            icon: const Icon(Icons.cached),
-            onPressed: () => DebugHelper.showCacheInfo(context),
-            tooltip: 'Cache info',
-          ),
+          if (kDebugMode)
+            IconButton(
+              icon: const Icon(Icons.bug_report),
+              onPressed: () => DebugHelper.testCommonDirectories(context),
+              tooltip: 'Test directories',
+            ),
         ],
       ),
       body: _selectedFolderPath != null && _hasValidAccess

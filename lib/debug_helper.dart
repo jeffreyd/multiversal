@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'file_system_service.dart';
-import 'thumbnail_cache.dart';
 
 class DebugHelper {
   static Future<void> testCommonDirectories(BuildContext context) async {
@@ -70,52 +69,4 @@ class DebugHelper {
     ];
   }
 
-  static Future<void> showCacheInfo(BuildContext context) async {
-    try {
-      final cacheSize = await ThumbnailCache.getCacheSize();
-      final cacheSizeMB = (cacheSize / (1024 * 1024)).toStringAsFixed(2);
-
-      if (context.mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Thumbnail Cache Info'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Cache size: ${cacheSizeMB}MB'),
-                const SizedBox(height: 16),
-                const Text('Cache stores generated thumbnails to improve performance.'),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
-              ),
-              TextButton(
-                onPressed: () async {
-                  await ThumbnailCache.clearCache();
-                  if (context.mounted) {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Cache cleared')),
-                    );
-                  }
-                },
-                child: const Text('Clear Cache'),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error reading cache: $e')),
-        );
-      }
-    }
-  }
 }

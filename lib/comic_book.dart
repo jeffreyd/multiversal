@@ -1,9 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:isolate';
 import 'package:archive/archive_io.dart';
-import 'package:image/image.dart' as img;
-import 'thumbnail_cache.dart';
 
 class ComicBookImage {
   final String name;
@@ -13,8 +10,19 @@ class ComicBookImage {
   ComicBookImage(this.name, this._archiveFile);
 
   Future<Uint8List> get data async {
-    _cachedData ??= _archiveFile.content as Uint8List;
-    return _cachedData!;
+    if (_cachedData != null) return _cachedData!;
+
+    try {
+      final content = _archiveFile.content;
+      if (content.isEmpty) {
+        throw Exception('Image file is empty');
+      }
+
+      _cachedData = content;
+      return _cachedData!;
+    } catch (e) {
+      throw Exception('Failed to extract image "$name": $e');
+    }
   }
 
   // Get data size without loading content
@@ -30,7 +38,6 @@ class ComicBook {
   final String _fileExtension;
   Archive? _archive;
   List<ArchiveFile>? _imageFiles;
-  Uint8List? _thumbnailCache;
 
   ComicBook(this.filePath) : _fileExtension = filePath.toLowerCase().split('.').last;
 
@@ -46,19 +53,9 @@ class ComicBook {
 
     try {
       final file = File(filePath);
-      final fileSize = await file.length();
-
-      // For large files, consider using streaming approach
-      if (fileSize > 100 * 1024 * 1024) { // 100MB threshold
-        // Use streaming decoder for very large files
-        final inputStream = InputFileStream(filePath);
-        _archive = ZipDecoder().decodeBuffer(inputStream);
-        inputStream.close();
-      } else {
-        // Standard approach for smaller files
-        final bytes = await file.readAsBytes();
-        _archive = ZipDecoder().decodeBytes(bytes);
-      }
+      // Read file and decode (streaming approach was removed in archive 4.x)
+      final bytes = await file.readAsBytes();
+      _archive = ZipDecoder().decodeBytes(bytes);
 
       return _archive;
     } catch (e) {
@@ -82,12 +79,26 @@ class ComicBook {
     _imageFiles = archive.files.where((file) {
       if (!file.isFile) return false;
 
-      final ext = file.name.toLowerCase().split('.').last;
+      final fileName = file.name.toLowerCase();
+
+      // Skip files without extensions or with specific non-image extensions
+      if (!fileName.contains('.')) return false;
+
+      final parts = fileName.split('.');
+      if (parts.length < 2) return false;
+
+      final ext = parts.last;
+
+      // Explicitly exclude common non-image files found in CBZ
+      const excludedExtensions = {'xml', 'txt', 'nfo', 'db', 'ini'};
+      if (excludedExtensions.contains(ext)) return false;
+
       return supportedExtensions.contains(ext);
     }).toList();
 
     // OPTIMIZATION 4: Natural sort implementation for better page ordering
     _imageFiles!.sort((a, b) => _naturalCompare(a.name, b.name));
+
 
     return _imageFiles!;
   }
@@ -111,105 +122,7 @@ class ComicBook {
   }
 
 
-  // OPTIMIZATION 6: Parallel thumbnail generation in isolate
-  Future<Uint8List?> get thumbnail async {
-    if (_thumbnailCache != null) return _thumbnailCache;
-
-    try {
-      final file = File(filePath);
-      final stat = await file.stat();
-      final lastModified = stat.modified;
-
-      // Check cache first
-      final cachedThumbnail = await ThumbnailCache.getThumbnail(filePath, lastModified);
-      if (cachedThumbnail != null) {
-        _thumbnailCache = cachedThumbnail;
-        return _thumbnailCache;
-      }
-
-      final imageFiles = await _getImageFiles();
-      if (imageFiles.isEmpty) return null;
-
-      final imageData = imageFiles.first.content as Uint8List;
-
-      // OPTIMIZATION 7: Generate thumbnail in isolate for large images
-      if (imageData.length > 5 * 1024 * 1024) { // 5MB threshold
-        _thumbnailCache = await _generateThumbnailInIsolate(imageData);
-      } else {
-        _thumbnailCache = await _generateThumbnailInMainThread(imageData);
-      }
-
-      if (_thumbnailCache != null) {
-        await ThumbnailCache.saveThumbnail(filePath, lastModified, _thumbnailCache!);
-      }
-
-      return _thumbnailCache;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Future<Uint8List?> _generateThumbnailInMainThread(Uint8List imageData) async {
-    try {
-      final image = img.decodeImage(imageData);
-      if (image == null) return null;
-
-      final thumbnail = img.copyResize(
-        image,
-        width: 200,
-        height: 300,
-        maintainAspect: true,
-      );
-
-      return Uint8List.fromList(img.encodePng(thumbnail));
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Future<Uint8List?> _generateThumbnailInIsolate(Uint8List imageData) async {
-    try {
-      final receivePort = ReceivePort();
-
-      await Isolate.spawn(_thumbnailIsolate, {
-        'sendPort': receivePort.sendPort,
-        'imageData': imageData,
-      });
-
-      final result = await receivePort.first as Uint8List?;
-      return result;
-    } catch (e) {
-      // Fallback to main thread if isolate fails
-      return await _generateThumbnailInMainThread(imageData);
-    }
-  }
-
-  static void _thumbnailIsolate(Map<String, dynamic> params) {
-    final sendPort = params['sendPort'] as SendPort;
-    final imageData = params['imageData'] as Uint8List;
-
-    try {
-      final image = img.decodeImage(imageData);
-      if (image == null) {
-        sendPort.send(null);
-        return;
-      }
-
-      final thumbnail = img.copyResize(
-        image,
-        width: 200,
-        height: 300,
-        maintainAspect: true,
-      );
-
-      final thumbnailData = Uint8List.fromList(img.encodePng(thumbnail));
-      sendPort.send(thumbnailData);
-    } catch (e) {
-      sendPort.send(null);
-    }
-  }
-
-  // OPTIMIZATION 8: Lazy-loaded images with better memory management
+  // Lazy-loaded images with better memory management
   Future<List<ComicBookImage>> get images async {
     try {
       final imageFiles = await _getImageFiles();
@@ -221,7 +134,7 @@ class ComicBook {
     }
   }
 
-  // OPTIMIZATION 9: Get specific image by index without loading all
+  // Get specific image by index without loading all
   Future<ComicBookImage?> getImageAt(int index) async {
     try {
       final imageFiles = await _getImageFiles();
@@ -233,7 +146,7 @@ class ComicBook {
     }
   }
 
-  // OPTIMIZATION 10: Preload next few images for smooth reading
+  // Preload next few images for smooth reading
   Future<void> preloadImages(int startIndex, int count) async {
     try {
       final imageFiles = await _getImageFiles();
@@ -270,7 +183,6 @@ class ComicBook {
   void dispose() {
     _archive = null;
     _imageFiles = null;
-    _thumbnailCache = null;
   }
 
   static bool isSupportedFile(String filePath) {
