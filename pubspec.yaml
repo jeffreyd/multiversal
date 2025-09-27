@@ -44,6 +44,22 @@ dependencies:
   # Path provider for getting app directories
   path_provider: ^2.1.1
 
+  # Archive handling for CBZ/CBR files
+  archive: ^3.6.1
+
+  # Image handling and manipulation
+  image: ^4.2.0
+
+  # Path manipulation utilities
+  path: ^1.9.1
+
+  # Permission handling for Android
+  permission_handler: ^11.3.1
+
+  # RAR file extraction (vendored with namespace fix)
+  unrar_file:
+    path: packages/unrar_file
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
