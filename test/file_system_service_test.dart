@@ -18,7 +18,7 @@ void main() {
       final otherItems = items.where((item) => item.type == FileSystemItemType.otherFile).toList();
 
       expect(folderItems.length, greaterThan(0)); // should find subfolder
-      expect(comicItems.length, greaterThan(0)); // should find cbz/cbr files
+      expect(comicItems.length, greaterThan(0)); // should find cbz files
       expect(otherItems.length, greaterThan(0)); // should find pdf/txt files
     });
 
@@ -28,12 +28,12 @@ void main() {
       final items = await FileSystemService.listDirectory(testPath);
       final comicItems = items.where((item) => item.type == FileSystemItemType.comicBook).toList();
 
-      // Should detect both CBZ and CBR files
+      // Should detect only CBZ files (CBR no longer supported)
       final cbzFiles = comicItems.where((item) => item.name.endsWith('.cbz')).toList();
       final cbrFiles = comicItems.where((item) => item.name.endsWith('.cbr')).toList();
 
       expect(cbzFiles.length, equals(1));
-      expect(cbrFiles.length, equals(1));
+      expect(cbrFiles.length, equals(0)); // CBR files should not be detected as comic books
     });
   });
 }

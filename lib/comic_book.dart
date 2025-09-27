@@ -1,24 +1,24 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:isolate';
-import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:image/image.dart' as img;
-import 'rar_extractor.dart';
-import 'rar_extractor_plugin.dart';
 import 'thumbnail_cache.dart';
-import 'cbr_preloader.dart';
 
 class ComicBookImage {
   final String name;
-  final Future<Uint8List> Function() _dataLoader;
+  final ArchiveFile _archiveFile;
   Uint8List? _cachedData;
 
-  ComicBookImage(this.name, this._dataLoader);
+  ComicBookImage(this.name, this._archiveFile);
 
   Future<Uint8List> get data async {
-    _cachedData ??= await _dataLoader();
+    _cachedData ??= _archiveFile.content as Uint8List;
     return _cachedData!;
   }
+
+  // Get data size without loading content
+  int get compressedSize => _archiveFile.size;
 
   void clearCache() {
     _cachedData = null;
@@ -30,69 +30,51 @@ class ComicBook {
   final String _fileExtension;
   Archive? _archive;
   List<ArchiveFile>? _imageFiles;
-  List<String>? _rarImageFiles;
   Uint8List? _thumbnailCache;
-  bool? _unrarAvailable;
-  CbrPreloader? _cbrPreloader;
 
   ComicBook(this.filePath) : _fileExtension = filePath.toLowerCase().split('.').last;
 
-  bool get isSupported => _fileExtension == 'cbz' || _fileExtension == 'cbr';
+  bool get isSupported => _fileExtension == 'cbz';
 
-  // OPTIMIZATION 1: Stream-based archive reading for large files
+  // OPTIMIZATION 1: Optimized CBZ archive loading with streaming
   Future<Archive?> _loadArchive() async {
     if (_archive != null) return _archive;
 
-    try {
-      switch (_fileExtension) {
-        case 'cbz':
-          // OPTIMIZATION 2: Use streaming decoder for large ZIP files
-          try {
-            final file = File(filePath);
-            final bytes = await file.readAsBytes();
+    if (_fileExtension != 'cbz') {
+      throw UnsupportedError('Only CBZ format is supported');
+    }
 
-            // For large files, we could implement chunked reading here
-            // For now, use the standard decoder with some optimization
-            _archive = ZipDecoder().decodeBytes(bytes);
-          } catch (e) {
-            throw Exception('Failed to decode ZIP file: $e');
-          }
-          break;
-        case 'cbr':
-          _archive = _decodeRarBytes(Uint8List(0)); // CBR handled separately
-          break;
-        default:
-          throw UnsupportedError('Unsupported file format: $_fileExtension');
+    try {
+      final file = File(filePath);
+      final fileSize = await file.length();
+
+      // For large files, consider using streaming approach
+      if (fileSize > 100 * 1024 * 1024) { // 100MB threshold
+        // Use streaming decoder for very large files
+        final inputStream = InputFileStream(filePath);
+        _archive = ZipDecoder().decodeBuffer(inputStream);
+        inputStream.close();
+      } else {
+        // Standard approach for smaller files
+        final bytes = await file.readAsBytes();
+        _archive = ZipDecoder().decodeBytes(bytes);
       }
 
       return _archive;
     } catch (e) {
-      throw Exception('Failed to load comic book archive: $e');
+      throw Exception('Failed to load CBZ archive: $e');
     }
   }
 
-  Archive? _decodeRarBytes(Uint8List bytes) {
-    throw UnsupportedError('RAR decoding not supported in this version. Please convert CBR files to CBZ format.');
-  }
 
-  Future<bool> _isUnrarAvailable() async {
-    _unrarAvailable ??= await RarExtractor.isUnrarAvailable();
-    return _unrarAvailable!;
-  }
-
-  final List<String> _supportedImageExtensions = [
-    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'
-  ];
-
-
-  // OPTIMIZATION 3: Lazy loading with better filtering
+  // OPTIMIZATION 2: Lazy loading with better filtering
   Future<List<ArchiveFile>> _getImageFiles() async {
     if (_imageFiles != null) return _imageFiles!;
 
     final archive = await _loadArchive();
     if (archive == null) return [];
 
-    // OPTIMIZATION 4: Use Set for faster extension lookup
+    // OPTIMIZATION 3: Use Set for faster extension lookup
     const supportedExtensions = {
       'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'tga'
     };
@@ -104,13 +86,13 @@ class ComicBook {
       return supportedExtensions.contains(ext);
     }).toList();
 
-    // OPTIMIZATION 5: Natural sort implementation for better page ordering
+    // OPTIMIZATION 4: Natural sort implementation for better page ordering
     _imageFiles!.sort((a, b) => _naturalCompare(a.name, b.name));
 
     return _imageFiles!;
   }
 
-  // OPTIMIZATION 6: Better natural sorting algorithm
+  // OPTIMIZATION 5: Better natural sorting algorithm
   int _naturalCompare(String a, String b) {
     final regex = RegExp(r'(\d+)');
     final aMatches = regex.allMatches(a.toLowerCase()).toList();
@@ -128,42 +110,8 @@ class ComicBook {
     return a.toLowerCase().compareTo(b.toLowerCase());
   }
 
-  Future<List<String>> _getRarImageFiles() async {
-    if (_rarImageFiles != null) return _rarImageFiles!;
 
-    if (_fileExtension != 'cbr') return [];
-
-    try {
-      _rarImageFiles = await RarExtractorPlugin.listFiles(filePath);
-
-      // Initialize preloader for CBR files
-      if (_rarImageFiles!.isNotEmpty) {
-        _cbrPreloader = CbrPreloader(
-          filePath: filePath,
-          imageFiles: _rarImageFiles!,
-        );
-      }
-
-      return _rarImageFiles!;
-    } catch (e) {
-      if (await _isUnrarAvailable()) {
-        _rarImageFiles = await RarExtractor.listFiles(filePath);
-
-        // Initialize preloader for CBR files
-        if (_rarImageFiles!.isNotEmpty) {
-          _cbrPreloader = CbrPreloader(
-            filePath: filePath,
-            imageFiles: _rarImageFiles!,
-          );
-        }
-
-        return _rarImageFiles!;
-      }
-      throw UnsupportedError('RAR extraction failed. Neither unrar_file plugin nor system unrar is available.');
-    }
-  }
-
-  // OPTIMIZATION 7: Parallel thumbnail generation in isolate
+  // OPTIMIZATION 6: Parallel thumbnail generation in isolate
   Future<Uint8List?> get thumbnail async {
     if (_thumbnailCache != null) return _thumbnailCache;
 
@@ -179,28 +127,12 @@ class ComicBook {
         return _thumbnailCache;
       }
 
-      Uint8List? imageData;
+      final imageFiles = await _getImageFiles();
+      if (imageFiles.isEmpty) return null;
 
-      if (_fileExtension == 'cbr') {
-        final rarFiles = await _getRarImageFiles();
-        if (rarFiles.isEmpty) return null;
+      final imageData = imageFiles.first.content as Uint8List;
 
-        try {
-          imageData = await RarExtractorPlugin.extractFile(filePath, rarFiles.first);
-        } catch (e) {
-          if (await _isUnrarAvailable()) {
-            imageData = await RarExtractor.extractFile(filePath, rarFiles.first);
-          }
-        }
-      } else {
-        final imageFiles = await _getImageFiles();
-        if (imageFiles.isEmpty) return null;
-        imageData = imageFiles.first.content as Uint8List;
-      }
-
-      if (imageData == null) return null;
-
-      // OPTIMIZATION 8: Generate thumbnail in isolate for large images
+      // OPTIMIZATION 7: Generate thumbnail in isolate for large images
       if (imageData.length > 5 * 1024 * 1024) { // 5MB threshold
         _thumbnailCache = await _generateThumbnailInIsolate(imageData);
       } else {
@@ -277,92 +209,72 @@ class ComicBook {
     }
   }
 
+  // OPTIMIZATION 8: Lazy-loaded images with better memory management
   Future<List<ComicBookImage>> get images async {
     try {
-      if (_fileExtension == 'cbr') {
-        final rarFiles = await _getRarImageFiles();
-        return rarFiles.asMap().entries.map((entry) {
-          final index = entry.key;
-          final filename = entry.value;
-
-          return ComicBookImage(
-            filename,
-            () async {
-              // Use preloader for CBR files
-              if (_cbrPreloader != null) {
-                final data = await _cbrPreloader!.getImage(index);
-                return data ?? Uint8List(0);
-              }
-
-              // Fallback to direct extraction
-              try {
-                final data = await RarExtractorPlugin.extractFile(filePath, filename);
-                return data ?? Uint8List(0);
-              } catch (e) {
-                if (await _isUnrarAvailable()) {
-                  final data = await RarExtractor.extractFile(filePath, filename);
-                  return data ?? Uint8List(0);
-                }
-                return Uint8List(0);
-              }
-            },
-          );
-        }).toList();
-      } else {
-        final imageFiles = await _getImageFiles();
-        return imageFiles.map((archiveFile) {
-          return ComicBookImage(
-            archiveFile.name,
-            () async => archiveFile.content as Uint8List,
-          );
-        }).toList();
-      }
+      final imageFiles = await _getImageFiles();
+      return imageFiles.map((archiveFile) {
+        return ComicBookImage(archiveFile.name, archiveFile);
+      }).toList();
     } catch (e) {
       return [];
     }
   }
 
-  Future<int> get imageCount async {
-    if (_fileExtension == 'cbr') {
-      final rarFiles = await _getRarImageFiles();
-      return rarFiles.length;
-    } else {
+  // OPTIMIZATION 9: Get specific image by index without loading all
+  Future<ComicBookImage?> getImageAt(int index) async {
+    try {
       final imageFiles = await _getImageFiles();
-      return imageFiles.length;
+      if (index < 0 || index >= imageFiles.length) return null;
+
+      return ComicBookImage(imageFiles[index].name, imageFiles[index]);
+    } catch (e) {
+      return null;
     }
+  }
+
+  // OPTIMIZATION 10: Preload next few images for smooth reading
+  Future<void> preloadImages(int startIndex, int count) async {
+    try {
+      final imageFiles = await _getImageFiles();
+      final endIndex = (startIndex + count).clamp(0, imageFiles.length);
+
+      for (int i = startIndex; i < endIndex; i++) {
+        // Trigger content loading in background
+        final _ = imageFiles[i].content;
+      }
+    } catch (e) {
+      // Ignore preload errors
+    }
+  }
+
+  Future<int> get imageCount async {
+    final imageFiles = await _getImageFiles();
+    return imageFiles.length;
   }
 
   Future<void> preloadAroundPage(int pageIndex) async {
-    if (_fileExtension == 'cbr' && _cbrPreloader != null) {
-      await _cbrPreloader!.preloadAround(pageIndex);
-    }
+    // CBZ files are loaded into memory, so no preloading needed
   }
 
   bool isPageCached(int pageIndex) {
-    if (_fileExtension == 'cbr' && _cbrPreloader != null) {
-      return _cbrPreloader!.isImageCached(pageIndex);
-    }
-    return false; // CBZ files are always "cached" since they're in memory
+    // CBZ files are always "cached" since they're loaded in memory
+    return true;
   }
 
   Map<String, dynamic>? getCacheStats() {
-    if (_fileExtension == 'cbr' && _cbrPreloader != null) {
-      return _cbrPreloader!.getCacheStats();
-    }
+    // No cache stats for CBZ files as they're fully loaded
     return null;
   }
 
   void dispose() {
     _archive = null;
     _imageFiles = null;
-    _rarImageFiles = null;
     _thumbnailCache = null;
-    _cbrPreloader?.dispose();
-    _cbrPreloader = null;
   }
 
   static bool isSupportedFile(String filePath) {
     final ext = filePath.toLowerCase().split('.').last;
-    return ext == 'cbz' || ext == 'cbr';
+    return ext == 'cbz';
   }
 }

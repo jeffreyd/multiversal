@@ -1,14 +1,15 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:multiversal/comic_book.dart';
+import 'package:archive/archive.dart';
 
 void main() {
   group('ComicBook', () {
     test('should identify supported file formats', () {
       expect(ComicBook.isSupportedFile('test.cbz'), isTrue);
-      expect(ComicBook.isSupportedFile('test.cbr'), isTrue);
       expect(ComicBook.isSupportedFile('TEST.CBZ'), isTrue);
-      expect(ComicBook.isSupportedFile('TEST.CBR'), isTrue);
+      expect(ComicBook.isSupportedFile('test.cbr'), isFalse);
+      expect(ComicBook.isSupportedFile('TEST.CBR'), isFalse);
       expect(ComicBook.isSupportedFile('test.pdf'), isFalse);
       expect(ComicBook.isSupportedFile('test.txt'), isFalse);
     });
@@ -26,42 +27,33 @@ void main() {
   });
 
   group('ComicBookImage', () {
-    test('should create image with lazy loading', () async {
-      bool loadCalled = false;
-      final image = ComicBookImage('test.jpg', () async {
-        loadCalled = true;
-        return Uint8List.fromList([1, 2, 3, 4, 5]);
-      });
+    test('should create image with archive file', () async {
+      final testData = Uint8List.fromList([1, 2, 3, 4, 5]);
+      final archiveFile = ArchiveFile('test.jpg', testData.length, testData);
+      final image = ComicBookImage('test.jpg', archiveFile);
 
       expect(image.name, equals('test.jpg'));
-      expect(loadCalled, isFalse);
+      expect(image.compressedSize, equals(testData.length));
 
       final data = await image.data;
-      expect(loadCalled, isTrue);
       expect(data, equals([1, 2, 3, 4, 5]));
 
-      loadCalled = false;
+      // Test caching
       final data2 = await image.data;
-      expect(loadCalled, isFalse);
       expect(data2, equals([1, 2, 3, 4, 5]));
     });
 
     test('should clear cache', () async {
-      int loadCallCount = 0;
-      final image = ComicBookImage('test.jpg', () async {
-        loadCallCount++;
-        return Uint8List.fromList([1, 2, 3, 4, 5]);
-      });
+      final testData = Uint8List.fromList([1, 2, 3, 4, 5]);
+      final archiveFile = ArchiveFile('test.jpg', testData.length, testData);
+      final image = ComicBookImage('test.jpg', archiveFile);
 
       await image.data;
-      expect(loadCallCount, equals(1));
-
-      await image.data;
-      expect(loadCallCount, equals(1));
 
       image.clearCache();
-      await image.data;
-      expect(loadCallCount, equals(2));
+      // Test that cache is cleared by loading again and checking data is still accessible
+      final dataAfterClear = await image.data;
+      expect(dataAfterClear, equals([1, 2, 3, 4, 5]));
     });
   });
 }

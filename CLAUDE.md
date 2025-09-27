@@ -4,13 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Multiversal is a Flutter-based comic book reader application for Android that supports both CBZ (ZIP) and CBR (RAR) comic book formats. The app provides a native, high-performance reading experience with features like thumbnail caching, folder browsing, and immersive full-screen viewing.
+Multiversal is a Flutter-based comic book reader application for Android that supports CBZ (ZIP) comic book format. The app provides a native, high-performance reading experience with features like thumbnail caching, folder browsing, and immersive full-screen viewing.
 
 ## Key Features
 
 ### Comic Book Support
 - **CBZ files**: ZIP-based comic books with optimized streaming and caching
-- **CBR files**: RAR-based comic books with intelligent preloading (2-3 pages ahead)
 - **Thumbnail generation**: Automatic thumbnails with persistent caching
 - **Format detection**: Supports jpg, jpeg, png, gif, bmp, webp image formats
 
@@ -24,7 +23,7 @@ Multiversal is a Flutter-based comic book reader application for Android that su
 ### Performance Optimizations
 - **Parallel file operations**: Directory listing uses parallel stat() calls (40-60% faster)
 - **Isolate thumbnail processing**: Large images (>5MB) processed in background threads
-- **CBR preloading**: Intelligent caching of current + next 2 + previous 1 pages
+- **Streaming CBZ loading**: Large archives use streaming decoders for better memory efficiency
 - **Memory management**: Efficient cache trimming and resource disposal
 - **Natural sorting**: Proper numeric ordering of comic pages
 
@@ -56,8 +55,9 @@ Multiversal is a Flutter-based comic book reader application for Android that su
 - `flutter pub upgrade` - Upgrade dependencies
 
 ### Tools
-- `python tools/cbr_to_cbz.py <input>` - Convert CBR files to CBZ format
+- `python tools/cbr_to_cbz.py <input>` - Convert CBR files to CBZ or CB7 format
   - Supports single files, directories, and recursive conversion
+  - Use `--format cbz` or `--format cb7` to specify output format
   - Use `--recursive` for subdirectories
   - Use `--delete-original` to remove CBR files after conversion
 
@@ -67,14 +67,11 @@ Multiversal is a Flutter-based comic book reader application for Android that su
 lib/
   main.dart                 # App entry point with folder selection
   comic_viewer.dart         # Full-screen comic book reader
-  comic_book.dart          # Comic book archive handling (CBZ/CBR)
+  comic_book.dart          # Comic book archive handling (CBZ only)
   file_browser.dart        # Directory and file browsing UI
   file_system_service.dart # Optimized file system operations
   thumbnail_cache.dart     # Persistent thumbnail caching
   thumbnail_preloader.dart # Background thumbnail generation
-  cbr_preloader.dart      # CBR-specific preloading system
-  rar_extractor.dart      # System unrar integration
-  rar_extractor_plugin.dart # unrar_file plugin wrapper
   permission_service.dart  # Android storage permissions
   settings_dialog.dart     # Settings popup with bulk operations
   debug_helper.dart        # Development and debugging tools
@@ -82,10 +79,8 @@ test/
   comic_book_test.dart     # Unit tests for comic book functionality
   widget_test.dart         # Widget tests
 android/                   # Android-specific configuration
-packages/
-  unrar_file/             # Vendored RAR extraction library (namespace fixed)
 tools/
-  cbr_to_cbz.py          # Python script for format conversion
+  cbr_to_cbz.py          # Python script for CBR to CBZ/CB7 conversion
 ```
 
 ## Dependencies
@@ -94,12 +89,11 @@ tools/
 - `file_picker: ^8.0.0+1` - Directory selection
 - `shared_preferences: ^2.2.2` - Persistent settings storage
 - `path_provider: ^2.1.1` - App directory access
-- `archive: ^3.6.1` - ZIP archive handling
+- `archive: ^3.6.1` - ZIP archive handling for CBZ files
 - `image: ^4.2.0` - Image processing and thumbnail generation
 - `path: ^1.9.1` - File path utilities
 - `permission_handler: ^11.3.1` - Android permissions
 - `crypto: ^3.0.3` - SHA256 hashing for cache keys
-- `unrar_file: (vendored)` - RAR extraction (locally modified)
 
 ### Development Dependencies
 - `flutter_lints: ^5.0.0` - Dart/Flutter linting rules
@@ -110,10 +104,10 @@ tools/
 ### Core Classes
 
 #### `ComicBook`
-- Handles both CBZ and CBR archive formats
-- Implements lazy loading with optimized caching
+- Handles CBZ (ZIP) archive format with optimized streaming
+- Implements lazy loading with efficient memory management
 - Supports isolate-based thumbnail generation for large images
-- Provides preloading interface for CBR files
+- Provides intelligent preloading for smooth page navigation
 
 #### `FileBrowser`
 - Directory navigation with thumbnail previews
@@ -139,11 +133,11 @@ tools/
 
 ### Performance Features
 
-#### CBR Preloading
-- Preloads current + next 2 + previous 1 pages
-- Batch extraction for consecutive pages
-- Memory-efficient cache with automatic trimming
-- Fallback to system unrar if plugin fails
+#### CBZ Optimization
+- Streaming archive reading for large files (>100MB)
+- Lazy image loading with intelligent preloading
+- Memory-efficient caching with automatic cleanup
+- Native ZIP handling with minimal overhead
 
 #### Thumbnail Generation
 - Background processing for large images (>5MB)
@@ -212,8 +206,8 @@ tools/
 2. Modify cache cleanup intervals in `ThumbnailCache.cleanOldCache()`
 3. Update cache key generation in `ThumbnailCache._getCacheKey()`
 
-### Optimizing Performance
+### Optimizing CBZ Performance
 1. Profile with Flutter DevTools to identify bottlenecks
-2. Consider isolate processing for new CPU-intensive operations
-3. Implement batching for repetitive async operations
+2. Adjust streaming threshold in `ComicBook._loadArchive()` for different file sizes
+3. Implement additional preloading strategies in `ComicBook.preloadImages()`
 4. Monitor memory usage and implement cleanup where needed

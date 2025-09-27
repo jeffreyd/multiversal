@@ -127,8 +127,8 @@ class _ComicViewerState extends State<ComicViewer>
   }
 
   void _triggerPreload() {
-    // Trigger preloading for CBR files
-    _comicBook.preloadAroundPage(_currentIndex);
+    // Trigger preloading for next few pages
+    _comicBook.preloadImages(_currentIndex, 3);
   }
 
   Widget _buildImageViewer() {

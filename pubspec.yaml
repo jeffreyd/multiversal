@@ -56,9 +56,6 @@ dependencies:
   # Permission handling for Android
   permission_handler: ^11.3.1
 
-  # RAR file extraction (vendored with namespace fix)
-  unrar_file:
-    path: packages/unrar_file
 
   # Cryptographic hashing for cache keys
   crypto: ^3.0.3
