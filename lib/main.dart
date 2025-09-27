@@ -5,6 +5,7 @@ import 'file_browser.dart';
 import 'file_system_service.dart';
 import 'debug_helper.dart';
 import 'permission_service.dart';
+import 'settings_dialog.dart';
 
 void main() {
   runApp(const MultiversalApp());
@@ -49,6 +50,23 @@ class _FolderSelectionPageState extends State<FolderSelectionPage> {
     if (hasPermission) {
       await _loadSavedFolder();
     }
+  }
+
+  void _onDirectoryChanged(String? newDirectory) {
+    setState(() {
+      _selectedFolderPath = newDirectory;
+      _hasValidAccess = newDirectory != null;
+    });
+  }
+
+  Future<void> _showSettings() async {
+    await showDialog(
+      context: context,
+      builder: (context) => SettingsDialog(
+        currentDirectory: _selectedFolderPath,
+        onDirectoryChanged: _onDirectoryChanged,
+      ),
+    );
   }
 
   Future<void> _loadSavedFolder() async {
@@ -272,17 +290,11 @@ class _FolderSelectionPageState extends State<FolderSelectionPage> {
         title: const Text('Multiversal'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
-          if (_selectedFolderPath != null && _hasValidAccess)
-            IconButton(
-              icon: const Icon(Icons.settings),
-              onPressed: () {
-                setState(() {
-                  _selectedFolderPath = null;
-                  _hasValidAccess = false;
-                });
-              },
-              tooltip: 'Change folder',
-            ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: _showSettings,
+            tooltip: 'Settings',
+          ),
           IconButton(
             icon: const Icon(Icons.bug_report),
             onPressed: () => DebugHelper.testCommonDirectories(context),

@@ -70,6 +70,9 @@ class _ComicViewerState extends State<ComicViewer>
           _isLoading = false;
           _error = null;
         });
+
+        // Start preloading for the first few pages
+        _triggerPreload();
       }
     } catch (e) {
       if (mounted) {
@@ -99,6 +102,7 @@ class _ComicViewerState extends State<ComicViewer>
         _currentIndex++;
       });
       _transformationController.value = Matrix4.identity();
+      _triggerPreload();
     }
   }
 
@@ -108,6 +112,7 @@ class _ComicViewerState extends State<ComicViewer>
         _currentIndex--;
       });
       _transformationController.value = Matrix4.identity();
+      _triggerPreload();
     }
   }
 
@@ -117,7 +122,13 @@ class _ComicViewerState extends State<ComicViewer>
         _currentIndex = index;
       });
       _transformationController.value = Matrix4.identity();
+      _triggerPreload();
     }
+  }
+
+  void _triggerPreload() {
+    // Trigger preloading for CBR files
+    _comicBook.preloadAroundPage(_currentIndex);
   }
 
   Widget _buildImageViewer() {
@@ -250,11 +261,11 @@ class _ComicViewerState extends State<ComicViewer>
       animation: _controlsAnimation,
       builder: (context, child) {
         return Positioned(
-          bottom: -80 + (80 * _controlsAnimation.value),
+          bottom: -100 + (100 * _controlsAnimation.value),
           left: 0,
           right: 0,
           child: Container(
-            height: 80,
+            height: 100,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter,
@@ -266,41 +277,63 @@ class _ComicViewerState extends State<ComicViewer>
               ),
             ),
             child: SafeArea(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.skip_previous,
-                      color: _currentIndex > 0 ? Colors.white : Colors.white38,
-                      size: 32,
+                  // Filename and page info
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                    child: Text(
+                      '${_images.isNotEmpty ? _images[_currentIndex].name : ''} (${_currentIndex + 1} of ${_images.length})',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
-                    onPressed: _currentIndex > 0 ? _previousPage : null,
                   ),
+                  // Controls row
                   Expanded(
-                    child: Slider(
-                      value: _currentIndex.toDouble(),
-                      min: 0,
-                      max: (_images.length - 1).toDouble(),
-                      divisions: _images.length > 1 ? _images.length - 1 : 1,
-                      activeColor: Colors.white,
-                      inactiveColor: Colors.white38,
-                      thumbColor: Colors.white,
-                      onChanged: (value) {
-                        _goToPage(value.round());
-                      },
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.skip_previous,
+                            color: _currentIndex > 0 ? Colors.white : Colors.white38,
+                            size: 32,
+                          ),
+                          onPressed: _currentIndex > 0 ? _previousPage : null,
+                        ),
+                        Expanded(
+                          child: Slider(
+                            value: _currentIndex.toDouble(),
+                            min: 0,
+                            max: (_images.length - 1).toDouble(),
+                            divisions: _images.length > 1 ? _images.length - 1 : 1,
+                            activeColor: Colors.white,
+                            inactiveColor: Colors.white38,
+                            thumbColor: Colors.white,
+                            onChanged: (value) {
+                              _goToPage(value.round());
+                            },
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.skip_next,
+                            color: _currentIndex < _images.length - 1
+                                ? Colors.white
+                                : Colors.white38,
+                            size: 32,
+                          ),
+                          onPressed:
+                              _currentIndex < _images.length - 1 ? _nextPage : null,
+                        ),
+                      ],
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.skip_next,
-                      color: _currentIndex < _images.length - 1
-                          ? Colors.white
-                          : Colors.white38,
-                      size: 32,
-                    ),
-                    onPressed:
-                        _currentIndex < _images.length - 1 ? _nextPage : null,
                   ),
                 ],
               ),
