@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'file_system_service.dart';
 import 'comic_book.dart';
 import 'thumbnail_preloader.dart';
+import 'comic_viewer.dart';
 
 class FileBrowser extends StatefulWidget {
   final String rootPath;
@@ -173,6 +174,11 @@ class _FileBrowserState extends State<FileBrowser> {
         if (item.isFolder) {
           _navigateToFolder(item.fullPath);
         } else if (item.isComicBook) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => ComicViewer(filePath: item.fullPath),
+            ),
+          );
           widget.onComicBookSelected?.call(item.fullPath);
         }
       },
