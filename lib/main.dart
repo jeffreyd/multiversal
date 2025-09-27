@@ -287,6 +287,11 @@ class _FolderSelectionPageState extends State<FolderSelectionPage> {
             onPressed: () => DebugHelper.testCommonDirectories(context),
             tooltip: 'Test directories',
           ),
+          IconButton(
+            icon: const Icon(Icons.cached),
+            onPressed: () => DebugHelper.showCacheInfo(context),
+            tooltip: 'Cache info',
+          ),
         ],
       ),
       body: _selectedFolderPath != null && _hasValidAccess

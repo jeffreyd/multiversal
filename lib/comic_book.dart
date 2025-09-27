@@ -4,6 +4,7 @@ import 'package:archive/archive.dart';
 import 'package:image/image.dart' as img;
 import 'rar_extractor.dart';
 import 'rar_extractor_plugin.dart';
+import 'thumbnail_cache.dart';
 
 class ComicBookImage {
   final String name;
@@ -114,6 +115,18 @@ class ComicBook {
     if (_thumbnailCache != null) return _thumbnailCache;
 
     try {
+      // Get file modification time for cache key
+      final file = File(filePath);
+      final stat = await file.stat();
+      final lastModified = stat.modified;
+
+      // Check cache first
+      final cachedThumbnail = await ThumbnailCache.getThumbnail(filePath, lastModified);
+      if (cachedThumbnail != null) {
+        _thumbnailCache = cachedThumbnail;
+        return _thumbnailCache;
+      }
+
       Uint8List? imageData;
 
       if (_fileExtension == 'cbr') {
@@ -146,6 +159,10 @@ class ComicBook {
       );
 
       _thumbnailCache = Uint8List.fromList(img.encodePng(thumbnail));
+
+      // Save to cache
+      await ThumbnailCache.saveThumbnail(filePath, lastModified, _thumbnailCache!);
+
       return _thumbnailCache;
     } catch (e) {
       return null;

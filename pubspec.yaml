@@ -60,6 +60,9 @@ dependencies:
   unrar_file:
     path: packages/unrar_file
 
+  # Cryptographic hashing for cache keys
+  crypto: ^3.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
