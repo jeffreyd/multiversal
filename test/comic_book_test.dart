@@ -26,9 +26,9 @@ void main() {
   });
 
   group('ComicBookImage', () {
-    test('should create image with lazy loading', () {
+    test('should create image with lazy loading', () async {
       bool loadCalled = false;
-      final image = ComicBookImage('test.jpg', () {
+      final image = ComicBookImage('test.jpg', () async {
         loadCalled = true;
         return Uint8List.fromList([1, 2, 3, 4, 5]);
       });
@@ -36,31 +36,31 @@ void main() {
       expect(image.name, equals('test.jpg'));
       expect(loadCalled, isFalse);
 
-      final data = image.data;
+      final data = await image.data;
       expect(loadCalled, isTrue);
       expect(data, equals([1, 2, 3, 4, 5]));
 
       loadCalled = false;
-      final data2 = image.data;
+      final data2 = await image.data;
       expect(loadCalled, isFalse);
       expect(data2, equals([1, 2, 3, 4, 5]));
     });
 
-    test('should clear cache', () {
+    test('should clear cache', () async {
       int loadCallCount = 0;
-      final image = ComicBookImage('test.jpg', () {
+      final image = ComicBookImage('test.jpg', () async {
         loadCallCount++;
         return Uint8List.fromList([1, 2, 3, 4, 5]);
       });
 
-      image.data;
+      await image.data;
       expect(loadCallCount, equals(1));
 
-      image.data;
+      await image.data;
       expect(loadCallCount, equals(1));
 
       image.clearCache();
-      image.data;
+      await image.data;
       expect(loadCallCount, equals(2));
     });
   });

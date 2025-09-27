@@ -22,6 +22,7 @@ class PermissionService {
     }
 
     if (status.isDenied || status.isLimited) {
+      if (!context.mounted) return false;
       final shouldRequest = await _showPermissionDialog(context);
       if (!shouldRequest) {
         return false;
@@ -30,7 +31,9 @@ class PermissionService {
       final result = await Permission.manageExternalStorage.request();
 
       if (result.isPermanentlyDenied) {
-        await _showSettingsDialog(context);
+        if (context.mounted) {
+          await _showSettingsDialog(context);
+        }
         return false;
       }
 
@@ -38,7 +41,9 @@ class PermissionService {
     }
 
     if (status.isPermanentlyDenied) {
-      await _showSettingsDialog(context);
+      if (context.mounted) {
+        await _showSettingsDialog(context);
+      }
       return false;
     }
 

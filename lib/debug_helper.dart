@@ -97,8 +97,8 @@ class DebugHelper {
               TextButton(
                 onPressed: () async {
                   await ThumbnailCache.clearCache();
-                  Navigator.of(context).pop();
                   if (context.mounted) {
+                    Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Cache cleared')),
                     );

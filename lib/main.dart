@@ -71,6 +71,7 @@ class _FolderSelectionPageState extends State<FolderSelectionPage> {
   Future<void> _selectFolder() async {
     final hasPermission = await PermissionService.hasAllFilesAccess();
     if (!hasPermission) {
+      if (!mounted) return;
       final granted = await PermissionService.requestAllFilesAccess(context);
       if (!granted) {
         return;
