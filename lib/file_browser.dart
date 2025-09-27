@@ -4,6 +4,7 @@ import 'file_system_service.dart';
 import 'comic_book.dart';
 import 'thumbnail_preloader.dart';
 import 'comic_viewer.dart';
+import 'read_status_service.dart';
 
 class FileBrowser extends StatefulWidget {
   final String rootPath;
@@ -25,13 +26,20 @@ class _FileBrowserState extends State<FileBrowser> {
   bool _isLoading = false;
   String? _error;
   late ThumbnailPreloader _thumbnailPreloader;
+  ReadStatusService? _readStatusService;
+  Map<String, bool> _readStatusCache = {};
 
   @override
   void initState() {
     super.initState();
     _thumbnailPreloader = ThumbnailPreloader();
     _currentPath = widget.rootPath;
+    _initReadStatusService();
     _loadDirectory();
+  }
+
+  Future<void> _initReadStatusService() async {
+    _readStatusService = await ReadStatusService.getInstance();
   }
 
   @override
@@ -60,6 +68,8 @@ class _FileBrowserState extends State<FileBrowser> {
 
         // Start preloading thumbnails for comic books
         _thumbnailPreloader.preloadThumbnails(items);
+        // Load read status for comic books
+        _loadReadStatus();
       }
     } catch (e) {
       if (mounted) {
@@ -67,6 +77,24 @@ class _FileBrowserState extends State<FileBrowser> {
           _error = 'Failed to load directory: ${e.toString()}';
           _isLoading = false;
           _items = [];
+        });
+      }
+    }
+  }
+
+  Future<void> _loadReadStatus() async {
+    if (_readStatusService == null) return;
+
+    final comicPaths = _items
+        .where((item) => item.isComicBook)
+        .map((item) => item.fullPath)
+        .toList();
+
+    if (comicPaths.isNotEmpty) {
+      final readStatusMap = await _readStatusService!.getReadStatusBatch(comicPaths);
+      if (mounted) {
+        setState(() {
+          _readStatusCache = readStatusMap;
         });
       }
     }
@@ -178,31 +206,77 @@ class _FileBrowserState extends State<FileBrowser> {
             MaterialPageRoute(
               builder: (context) => ComicViewer(filePath: item.fullPath),
             ),
-          );
+          ).then((_) {
+            // Refresh read status when returning from comic viewer
+            _loadReadStatus();
+          });
           widget.onComicBookSelected?.call(item.fullPath);
         }
       },
       trailing: item.isComicBook
-          ? FutureBuilder<ComicBookThumbnail?>(
-              future: _loadThumbnail(item.fullPath),
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data != null) {
-                  return Container(
-                    width: 40,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      image: DecorationImage(
-                        image: MemoryImage(snapshot.data!.data),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  );
-                }
-                return const SizedBox(width: 40, height: 60);
-              },
-            )
+          ? _buildComicBookTrailing(item)
           : null,
+    );
+  }
+
+  Widget _buildComicBookTrailing(FileSystemItem item) {
+    final isRead = _readStatusCache[item.fullPath] ?? false;
+
+    return FutureBuilder<ComicBookThumbnail?>(
+      future: _loadThumbnail(item.fullPath),
+      builder: (context, snapshot) {
+        Widget thumbnailWidget;
+
+        if (snapshot.hasData && snapshot.data != null) {
+          thumbnailWidget = Container(
+            width: 40,
+            height: 60,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              image: DecorationImage(
+                image: MemoryImage(snapshot.data!.data),
+                fit: BoxFit.cover,
+              ),
+            ),
+          );
+        } else {
+          thumbnailWidget = const SizedBox(width: 40, height: 60);
+        }
+
+        // Add read badge if the comic has been read
+        if (isRead) {
+          return Stack(
+            children: [
+              thumbnailWidget,
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.check,
+                    size: 12,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return thumbnailWidget;
+      },
     );
   }
 

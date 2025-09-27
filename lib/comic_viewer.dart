@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'comic_book.dart';
+import 'read_status_service.dart';
 
 class ComicViewer extends StatefulWidget {
   final String filePath;
@@ -22,6 +23,9 @@ class _ComicViewerState extends State<ComicViewer>
   bool _isLoading = true;
   bool _showControls = false;
   String? _error;
+  double _currentScale = 1.0;
+  bool _isZoomed = false;
+  ReadStatusService? _readStatusService;
 
   late AnimationController _controlsAnimationController;
   late Animation<double> _controlsAnimation;
@@ -44,14 +48,31 @@ class _ComicViewerState extends State<ComicViewer>
       curve: Curves.easeInOut,
     );
 
+    // Listen to transformation changes to track zoom level
+    _transformationController.addListener(_onTransformationChanged);
+
+    _initReadStatusService();
     _loadComicBook();
 
     // Hide system UI for immersive experience
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
   }
 
+  void _onTransformationChanged() {
+    final Matrix4 matrix = _transformationController.value;
+    final double scale = matrix.getMaxScaleOnAxis();
+
+    if (mounted && scale != _currentScale) {
+      setState(() {
+        _currentScale = scale;
+        _isZoomed = scale > 1.1; // Consider zoomed if > 110%
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _transformationController.removeListener(_onTransformationChanged);
     _comicBook.dispose();
     _controlsAnimationController.dispose();
     _transformationController.dispose();
@@ -101,8 +122,9 @@ class _ComicViewerState extends State<ComicViewer>
       setState(() {
         _currentIndex++;
       });
-      _transformationController.value = Matrix4.identity();
+      _animateToScale(1.0); // Reset zoom when changing pages
       _triggerPreload();
+      _checkIfLastPageReached();
     }
   }
 
@@ -111,7 +133,7 @@ class _ComicViewerState extends State<ComicViewer>
       setState(() {
         _currentIndex--;
       });
-      _transformationController.value = Matrix4.identity();
+      _animateToScale(1.0); // Reset zoom when changing pages
       _triggerPreload();
     }
   }
@@ -121,14 +143,59 @@ class _ComicViewerState extends State<ComicViewer>
       setState(() {
         _currentIndex = index;
       });
-      _transformationController.value = Matrix4.identity();
+      _animateToScale(1.0); // Reset zoom when changing pages
       _triggerPreload();
+      _checkIfLastPageReached();
     }
+  }
+
+  void _animateToScale(double scale) {
+    final double currentScale = _transformationController.value.getMaxScaleOnAxis();
+
+    if ((scale - currentScale).abs() < 0.1) return; // Already at target scale
+
+    // Create transformation matrix for the new scale
+    final Matrix4 targetMatrix = Matrix4.identity();
+    targetMatrix.setEntry(0, 0, scale); // Scale X
+    targetMatrix.setEntry(1, 1, scale); // Scale Y
+
+    // Animate to the new transformation
+    final AnimationController scaleController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
+    final Animation<Matrix4> scaleAnimation = Matrix4Tween(
+      begin: _transformationController.value,
+      end: targetMatrix,
+    ).animate(CurvedAnimation(
+      parent: scaleController,
+      curve: Curves.easeInOut,
+    ));
+
+    scaleAnimation.addListener(() {
+      _transformationController.value = scaleAnimation.value;
+    });
+
+    scaleController.forward().then((_) {
+      scaleController.dispose();
+    });
+  }
+
+  Future<void> _initReadStatusService() async {
+    _readStatusService = await ReadStatusService.getInstance();
   }
 
   void _triggerPreload() {
     // Trigger preloading for next few pages
     _comicBook.preloadImages(_currentIndex, 3);
+  }
+
+  void _checkIfLastPageReached() {
+    // Mark as read when reaching the last page
+    if (_currentIndex == _images.length - 1 && _readStatusService != null) {
+      _readStatusService!.markAsRead(widget.filePath);
+    }
   }
 
   Widget _buildImageViewer() {
@@ -138,6 +205,8 @@ class _ComicViewerState extends State<ComicViewer>
       transformationController: _transformationController,
       minScale: 0.5,
       maxScale: 4.0,
+      panEnabled: true,
+      scaleEnabled: true,
       child: Container(
           width: double.infinity,
           height: double.infinity,
@@ -149,6 +218,7 @@ class _ComicViewerState extends State<ComicViewer>
                 return Image.memory(
                   snapshot.data!,
                   fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
                   errorBuilder: (context, error, stackTrace) {
                     return Center(
                       child: Column(
@@ -246,6 +316,25 @@ class _ComicViewerState extends State<ComicViewer>
                       fontSize: 14,
                     ),
                   ),
+                  // Zoom level indicator
+                  if (_isZoomed) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${(_currentScale * 100).round()}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(width: 16),
                 ],
               ),
@@ -283,15 +372,42 @@ class _ComicViewerState extends State<ComicViewer>
                   // Filename and page info
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                    child: Text(
-                      '${_images.isNotEmpty ? _images[_currentIndex].name : ''} (${_currentIndex + 1} of ${_images.length})',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${_images.isNotEmpty ? _images[_currentIndex].name : ''} (${_currentIndex + 1} of ${_images.length})',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                        // Zoom indicator in bottom controls
+                        if (_isZoomed) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              '${(_currentScale * 100).round()}%',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                   // Controls row
@@ -345,6 +461,11 @@ class _ComicViewerState extends State<ComicViewer>
   }
 
   Widget _buildTapZones() {
+    // When zoomed, disable tap zones to allow panning
+    if (_isZoomed) {
+      return const SizedBox.shrink();
+    }
+
     return Positioned.fill(
       child: Row(
         children: [
@@ -380,8 +501,12 @@ class _ComicViewerState extends State<ComicViewer>
             child: GestureDetector(
               onTap: _toggleControls,
               onDoubleTap: () {
-                // Reset zoom on double tap
-                _transformationController.value = Matrix4.identity();
+                // Smart zoom: if not zoomed, zoom to 2x, if zoomed, reset
+                if (_isZoomed) {
+                  _animateToScale(1.0);
+                } else {
+                  _animateToScale(2.0);
+                }
               },
               child: Container(
                 color: Colors.transparent,

@@ -19,6 +19,8 @@ Multiversal is a Flutter-based comic book reader application for Android that su
 - **Zoom and pan**: Pinch-to-zoom (0.5x to 4x) with pan support
 - **Page information**: Shows filename and page position (e.g., "page001.jpg (5 of 23)")
 - **Smart controls**: Tap center to show/hide control bars with smooth animations
+- **Read status tracking**: Automatically marks comics as read when reaching the last page
+- **Read badges**: Visual indicators show which comics have been completed
 
 ### Performance Optimizations
 - **Parallel file operations**: Directory listing uses parallel stat() calls (40-60% faster)
@@ -72,6 +74,7 @@ lib/
   file_system_service.dart # Optimized file system operations
   thumbnail_cache.dart     # Persistent thumbnail caching
   thumbnail_preloader.dart # Background thumbnail generation
+  read_status_service.dart # Comic book read status tracking
   permission_service.dart  # Android storage permissions
   settings_dialog.dart     # Settings popup with bulk operations
   debug_helper.dart        # Development and debugging tools
