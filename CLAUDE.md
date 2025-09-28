@@ -20,8 +20,11 @@ Multiversal is a Flutter-based comic book reader application for Android that su
 - **Smart layout detection**: Automatically detects wide images (aspect ratio > 1.4)
 - **Page information**: Shows filename and page position (e.g., "page001.jpg (5 of 23)")
 - **Smart controls**: Tap center to show/hide control bars with smooth animations
+- **Reading progress tracking**: Automatically saves current page position with debounced saving
+- **Progress restoration**: Returns to exact page when reopening comics
 - **Read status tracking**: Automatically marks comics as read when reaching the last page
 - **Read badges**: Visual indicators show which comics have been completed
+- **Progress indicators**: Shows "Page X/Y" with progress bars for in-progress comics
 - **Gesture coordination**: Proper handling of tap zones that don't interfere with zoom gestures
 
 ### Performance Optimizations
@@ -30,11 +33,19 @@ Multiversal is a Flutter-based comic book reader application for Android that su
 - **Memory management**: Efficient resource disposal
 - **Natural sorting**: Proper numeric ordering of comic pages
 
+### File Management & UI
+- **Hidden files filtering**: Toggle visibility of files/folders starting with '.' (dot files)
+- **Swipe gestures**: Swipe right to mark as read, swipe left to mark as unread
+- **Visual feedback**: Color-coded swipe backgrounds with clear action indicators
+- **Instant status updates**: Real-time UI updates with confirmation messages
+- **Smart file detection**: Automatic comic book format recognition
+
 ### Storage & Permissions
 - **All Files Access**: Automatic permission requests for external storage
 - **Scoped storage**: Handles Android storage restrictions gracefully
-- **Persistent settings**: Remembers selected directories between sessions
-- **Read status tracking**: SHA256-based file identification for tracking completion
+- **Persistent settings**: Remembers selected directories and user preferences between sessions
+- **Reading progress persistence**: SHA256-based file identification for reliable progress tracking
+- **Read status tracking**: Comprehensive completion and progress state management
 - **LineageOS compatibility**: Fully functional without Google services or Play Store
 
 ## Development Commands
@@ -111,21 +122,32 @@ tools/
 - Provides intelligent preloading for smooth page navigation
 
 #### `FileBrowser`
-- Directory navigation with read status indicators
+- Directory navigation with comprehensive progress and read status indicators
+- Swipe-to-action gestures for quick comic status management
+- Hidden files filtering with user-configurable visibility toggle
 - Handles Android storage limitations with user guidance
 - Clean, fast file listing without thumbnails
 
 #### `ComicViewer`
 - Full-screen reading experience with coordinated gesture controls
+- Reading progress tracking with automatic position saving and restoration
 - Tap zones: left (previous), center (controls), right (next)
 - Pinch-to-zoom with transformation controller and proper gesture coordination
 - Progress slider with page information display
 - Smart gesture handling that prevents conflicts between tap zones and zoom gestures
+- Debounced progress saving to minimize storage writes during reading
 
 #### `FileSystemService`
 - Optimized directory listing with parallel operations
-- Smart file type detection and filtering
+- Smart file type detection and filtering with hidden files support
 - Lightweight comic file discovery for bulk operations
+
+#### `ReadStatusService`
+- Comprehensive reading progress and completion state management
+- SHA256-based file identification for reliable cross-session tracking
+- JSON-serialized progress data with efficient batch operations
+- Automatic progress cleanup when marking comics as unread
+- ReadingProgress class with percentage calculations and timestamp tracking
 
 
 ### Performance Features
@@ -141,6 +163,8 @@ tools/
 - Set-based extension lookup for faster filtering
 - Natural sorting for proper page ordering
 - Streaming-based operations where possible
+- Hidden files filtering with configurable visibility
+- Batch progress loading for efficient UI updates
 
 ## Android Configuration
 
@@ -214,6 +238,17 @@ tools/
 2. Adjust streaming threshold in `ComicBook._loadArchive()` for different file sizes
 3. Implement additional preloading strategies in `ComicBook.preloadImages()`
 4. Monitor memory usage and implement cleanup where needed
+
+### Modifying Reading Progress Features
+1. **Progress data structure**: Extend `ReadingProgress` class in `read_status_service.dart`
+2. **Saving behavior**: Adjust debounce timing in `ComicViewer._scheduleProgressSave()`
+3. **UI indicators**: Modify progress display in `FileBrowser._buildReadBadge()`
+4. **Batch operations**: Use `getReadingProgressBatch()` for efficient loading
+
+### Adding File Management Features
+1. **Swipe gestures**: Extend `FileBrowser._buildFileItem()` Dismissible configuration
+2. **File filtering**: Modify `FileSystemService.listDirectory()` filter logic
+3. **Status management**: Extend `ReadStatusService` methods for new status types
 
 ### Fixing Gesture Conflicts
 If zoom functionality stops working:

@@ -20,12 +20,15 @@ Regarding the lack of support for CB[R|7] or other formats, there's a script in 
 
 ## Key Features
 
-- **CBZ Support**: Optimized reading of ZIP-based comic books
-- **Full-Screen Viewer**: Immersive reading experience with gesture controls
+- **CBZ Support**: Optimized reading of ZIP-based comic books with streaming support
+- **Reading Progress Tracking**: Automatically saves and restores your exact page position
+- **Full-Screen Viewer**: Immersive reading experience with coordinated gesture controls
 - **Smart Navigation**: Tap zones, swipe gestures, and progress slider
-- **Pinch-to-Zoom**: Fully functional zoom with pan support
-- **Hidden Files Filter**: Option to hide/show files and folders starting with '.'
-- **Read Status Tracking**: Automatically marks comics as read
+- **Pinch-to-Zoom**: Fully functional zoom (0.5x to 4x) with pan support
+- **Progress Indicators**: Shows "Page X/Y" with visual progress bars for in-progress comics
+- **Swipe Gestures**: Swipe right to mark as read, swipe left to mark as unread
+- **Hidden Files Filter**: Toggle visibility of files and folders starting with '.'
+- **Read Status Tracking**: Comprehensive completion and progress state management
 - **Performance Optimized**: Parallel file operations and efficient memory management
 
 ## Development
