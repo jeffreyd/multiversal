@@ -13,15 +13,16 @@ Multiversal is a Flutter-based comic book reader application for Android that su
 - **Format detection**: Supports jpg, jpeg, png, gif, bmp, webp image formats
 
 ### Reading Experience
-- **Full-screen viewer**: Immersive reading with tap zones and gesture controls
+- **Full-screen viewer**: Immersive reading with coordinated gesture controls
 - **Navigation**: Tap left/right sides, swipe gestures, or progress slider
-- **Zoom and pan**: Pinch-to-zoom (0.5x to 4x) with pan support
+- **Pinch-to-zoom**: Fully functional zoom (0.5x to 4x) with pan support and gesture coordination
 - **Wide image support**: Two-page spreads display in scrollable view for tablet reading
 - **Smart layout detection**: Automatically detects wide images (aspect ratio > 1.4)
 - **Page information**: Shows filename and page position (e.g., "page001.jpg (5 of 23)")
 - **Smart controls**: Tap center to show/hide control bars with smooth animations
 - **Read status tracking**: Automatically marks comics as read when reaching the last page
 - **Read badges**: Visual indicators show which comics have been completed
+- **Gesture coordination**: Proper handling of tap zones that don't interfere with zoom gestures
 
 ### Performance Optimizations
 - **Parallel file operations**: Directory listing uses parallel stat() calls (40-60% faster)
@@ -34,6 +35,7 @@ Multiversal is a Flutter-based comic book reader application for Android that su
 - **Scoped storage**: Handles Android storage restrictions gracefully
 - **Persistent settings**: Remembers selected directories between sessions
 - **Read status tracking**: SHA256-based file identification for tracking completion
+- **LineageOS compatibility**: Fully functional without Google services or Play Store
 
 ## Development Commands
 
@@ -90,7 +92,7 @@ tools/
 - `file_picker: ^8.0.0+1` - Directory selection
 - `shared_preferences: ^2.2.2` - Persistent settings storage
 - `path_provider: ^2.1.1` - App directory access
-- `archive: ^3.6.1` - ZIP archive handling for CBZ files
+- `archive: ^4.0.7` - ZIP archive handling for CBZ files (upgraded to fix extraction bugs)
 - `path: ^1.9.1` - File path utilities
 - `permission_handler: ^11.3.1` - Android permissions
 - `crypto: ^3.0.3` - SHA256 hashing for cache keys
@@ -114,10 +116,11 @@ tools/
 - Clean, fast file listing without thumbnails
 
 #### `ComicViewer`
-- Full-screen reading experience with gesture controls
+- Full-screen reading experience with coordinated gesture controls
 - Tap zones: left (previous), center (controls), right (next)
-- Pinch-to-zoom with transformation controller
+- Pinch-to-zoom with transformation controller and proper gesture coordination
 - Progress slider with page information display
+- Smart gesture handling that prevents conflicts between tap zones and zoom gestures
 
 #### `FileSystemService`
 - Optimized directory listing with parallel operations
@@ -157,6 +160,18 @@ tools/
 - Provides fallback options for inaccessible directories
 - Supports both internal and external storage
 
+### App Icons
+- **High-resolution icons**: Complete icon set from 48x48 to 512x512 pixels
+- **Adaptive icons**: Modern Android 8.0+ adaptive icon support for crisp display
+- **Custom branding**: MULTIVERSAL themed icons with colored panels design
+- **Multiple densities**: mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi for all screen types
+- **Professional appearance**: Clean, modern design that fills icon space properly
+
+### Debug Features
+- **Debug helper**: Directory testing tools (debug builds only)
+- **Conditional debugging**: Debug UI elements only visible in development builds
+- **Performance monitoring**: Built-in cache stats and memory management tools
+
 ## Development Notes
 
 ### Code Style
@@ -180,7 +195,13 @@ tools/
 - Graceful degradation for unsupported files
 - Clear user feedback for permission and access issues
 - Comprehensive error recovery throughout the application
-- Debug tools for troubleshooting storage issues
+- Debug tools for troubleshooting storage issues (debug builds only)
+
+### Compatibility & Distribution
+- **LineageOS support**: Fully functional without Google Play Services
+- **AOSP compatibility**: Uses only standard Android APIs
+- **No Google dependencies**: Can be installed via APK sideloading
+- **Privacy focused**: No telemetry, analytics, or external service dependencies
 
 ## Common Development Tasks
 
@@ -193,3 +214,21 @@ tools/
 2. Adjust streaming threshold in `ComicBook._loadArchive()` for different file sizes
 3. Implement additional preloading strategies in `ComicBook.preloadImages()`
 4. Monitor memory usage and implement cleanup where needed
+
+### Fixing Gesture Conflicts
+If zoom functionality stops working:
+1. Check that tap zones don't have conflicting gesture handlers
+2. Ensure `InteractiveViewer` receives gestures directly
+3. Use coordinate-based tap detection instead of overlaid `GestureDetector` widgets
+4. Verify transformation controller is properly configured and listening
+
+### Updating App Icons
+1. Place source icons (512x512 recommended) in appropriate directory
+2. Use ImageMagick to generate all required densities: `magick input.png -resize NxN output.png`
+3. Create adaptive icons for Android 8.0+ with separate foreground/background layers
+4. Test on various devices to ensure proper scaling and appearance
+
+### Debug Mode Features
+- Use `kDebugMode` from `package:flutter/foundation.dart` to conditionally show debug UI
+- Debug helper accessible only in debug builds via `if (kDebugMode)`
+- Production builds automatically hide all debug functionality
