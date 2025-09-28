@@ -39,6 +39,7 @@ class _FolderSelectionPageState extends State<FolderSelectionPage> {
   String? _selectedFolderPath;
   bool _isLoading = false;
   bool _hasValidAccess = false;
+  final GlobalKey<FileBrowserState> _fileBrowserKey = GlobalKey<FileBrowserState>();
 
   @override
   void initState() {
@@ -68,6 +69,8 @@ class _FolderSelectionPageState extends State<FolderSelectionPage> {
         onDirectoryChanged: _onDirectoryChanged,
       ),
     );
+    // Refresh the file browser in case settings changed
+    _fileBrowserKey.currentState?.refresh();
   }
 
   Future<void> _loadSavedFolder() async {
@@ -306,6 +309,7 @@ class _FolderSelectionPageState extends State<FolderSelectionPage> {
       ),
       body: _selectedFolderPath != null && _hasValidAccess
           ? FileBrowser(
+              key: _fileBrowserKey,
               rootPath: _selectedFolderPath!,
               onComicBookSelected: (filePath) {
                 ScaffoldMessenger.of(context).showSnackBar(

@@ -36,7 +36,7 @@ class FileSystemItem {
 }
 
 class FileSystemService {
-  static Future<List<FileSystemItem>> listDirectory(String directoryPath) async {
+  static Future<List<FileSystemItem>> listDirectory(String directoryPath, {bool hideHiddenFiles = true}) async {
     try {
       final directory = Directory(directoryPath);
 
@@ -52,6 +52,11 @@ class FileSystemService {
       final futures = entities.map((entity) async {
         try {
           final name = path.basename(entity.path);
+
+          // Skip hidden files if filtering is enabled
+          if (hideHiddenFiles && name.startsWith('.')) {
+            return null;
+          }
 
           // Determine type first without stat() call when possible
           FileSystemItemType type;

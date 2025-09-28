@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'file_system_service.dart';
 import 'comic_viewer.dart';
 import 'read_status_service.dart';
@@ -14,27 +15,36 @@ class FileBrowser extends StatefulWidget {
   });
 
   @override
-  State<FileBrowser> createState() => _FileBrowserState();
+  State<FileBrowser> createState() => FileBrowserState();
 }
 
-class _FileBrowserState extends State<FileBrowser> {
+class FileBrowserState extends State<FileBrowser> {
   String _currentPath = '';
   List<FileSystemItem> _items = [];
   bool _isLoading = false;
   String? _error;
   ReadStatusService? _readStatusService;
   Map<String, bool> _readStatusCache = {};
+  bool _hideHiddenFiles = true;
 
   @override
   void initState() {
     super.initState();
     _currentPath = widget.rootPath;
     _initReadStatusService();
+    _loadSettings();
     _loadDirectory();
   }
 
   Future<void> _initReadStatusService() async {
     _readStatusService = await ReadStatusService.getInstance();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _hideHiddenFiles = prefs.getBool('hide_hidden_files') ?? true;
+    });
   }
 
   @override
@@ -46,6 +56,15 @@ class _FileBrowserState extends State<FileBrowser> {
     }
   }
 
+  // Public method to refresh the file browser
+  void refresh() {
+    _loadSettings().then((_) {
+      if (mounted) {
+        _loadDirectory();
+      }
+    });
+  }
+
   Future<void> _loadDirectory() async {
     setState(() {
       _isLoading = true;
@@ -53,7 +72,7 @@ class _FileBrowserState extends State<FileBrowser> {
     });
 
     try {
-      final items = await FileSystemService.listDirectory(_currentPath);
+      final items = await FileSystemService.listDirectory(_currentPath, hideHiddenFiles: _hideHiddenFiles);
       if (mounted) {
         setState(() {
           _items = items;

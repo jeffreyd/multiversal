@@ -20,6 +20,28 @@ class SettingsDialog extends StatefulWidget {
 
 class _SettingsDialogState extends State<SettingsDialog> {
   bool _isChangingDirectory = false;
+  bool _hideHiddenFiles = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _hideHiddenFiles = prefs.getBool('hide_hidden_files') ?? true;
+    });
+  }
+
+  Future<void> _saveHideHiddenFiles(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hide_hidden_files', value);
+    setState(() {
+      _hideHiddenFiles = value;
+    });
+  }
 
   String get _displayPath {
     if (widget.currentDirectory == null) return 'No directory selected';
@@ -167,6 +189,51 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         label: Text(widget.currentDirectory == null
                             ? 'Select Directory'
                             : 'Change Directory'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // File Filtering Section
+            Text(
+              'File Filtering',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.visibility_off,
+                          color: _hideHiddenFiles ? Colors.blue : Colors.grey,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Hide hidden files',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                        Switch(
+                          value: _hideHiddenFiles,
+                          onChanged: _saveHideHiddenFiles,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Hide files and folders that start with a dot (.)',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
