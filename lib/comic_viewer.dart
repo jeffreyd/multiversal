@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 import 'comic_book.dart';
 import 'read_status_service.dart';
 
@@ -28,6 +29,8 @@ class _ComicViewerState extends State<ComicViewer>
   ReadStatusService? _readStatusService;
   bool _isWideImage = false;
   ScrollController? _horizontalScrollController;
+  Timer? _progressSaveTimer;
+  bool _hasLoadedInitialProgress = false;
 
   late AnimationController _controlsAnimationController;
   late Animation<double> _controlsAnimation;
@@ -74,6 +77,10 @@ class _ComicViewerState extends State<ComicViewer>
 
   @override
   void dispose() {
+    // Cancel progress save timer and save final progress
+    _progressSaveTimer?.cancel();
+    _saveProgressImmediate();
+
     _transformationController.removeListener(_onTransformationChanged);
     _horizontalScrollController?.dispose();
     _comicBook.dispose();
@@ -94,6 +101,9 @@ class _ComicViewerState extends State<ComicViewer>
           _isLoading = false;
           _error = null;
         });
+
+        // Restore reading progress
+        await _loadInitialProgress();
 
         // Start preloading for the first few pages
         _triggerPreload();
@@ -129,6 +139,7 @@ class _ComicViewerState extends State<ComicViewer>
       _analyzeImageDimensions(); // Check if new image is wide
       _triggerPreload();
       _checkIfLastPageReached();
+      _scheduleProgressSave();
     }
   }
 
@@ -140,6 +151,7 @@ class _ComicViewerState extends State<ComicViewer>
       _animateToScale(1.0); // Reset zoom when changing pages
       _analyzeImageDimensions(); // Check if new image is wide
       _triggerPreload();
+      _scheduleProgressSave();
     }
   }
 
@@ -152,6 +164,7 @@ class _ComicViewerState extends State<ComicViewer>
       _analyzeImageDimensions(); // Check if new image is wide
       _triggerPreload();
       _checkIfLastPageReached();
+      _scheduleProgressSave();
     }
   }
 
@@ -200,7 +213,57 @@ class _ComicViewerState extends State<ComicViewer>
   void _checkIfLastPageReached() {
     // Mark as read when reaching the last page
     if (_currentIndex == _images.length - 1 && _readStatusService != null) {
-      _readStatusService!.markAsRead(widget.filePath);
+      _readStatusService!.markAsRead(widget.filePath, totalPages: _images.length);
+    }
+  }
+
+  /// Load initial reading progress and restore page position
+  Future<void> _loadInitialProgress() async {
+    if (_hasLoadedInitialProgress || _readStatusService == null || _images.isEmpty) {
+      return;
+    }
+
+    try {
+      final progress = await _readStatusService!.getReadingProgress(widget.filePath);
+      if (progress != null && mounted) {
+        // Ensure the saved page is within bounds
+        final restoredPage = progress.currentPage.clamp(0, _images.length - 1);
+
+        if (restoredPage != _currentIndex) {
+          setState(() {
+            _currentIndex = restoredPage;
+          });
+          _triggerPreload();
+        }
+      }
+      _hasLoadedInitialProgress = true;
+    } catch (e) {
+      print('Error loading initial progress: $e');
+    }
+  }
+
+  /// Schedule progress saving with debounce to avoid excessive writes
+  void _scheduleProgressSave() {
+    _progressSaveTimer?.cancel();
+    _progressSaveTimer = Timer(const Duration(seconds: 2), () {
+      _saveProgressImmediate();
+    });
+  }
+
+  /// Save progress immediately without debounce
+  void _saveProgressImmediate() {
+    if (_readStatusService == null || _images.isEmpty) return;
+
+    try {
+      final isCompleted = _currentIndex == _images.length - 1;
+      _readStatusService!.saveReadingProgress(
+        widget.filePath,
+        _currentIndex,
+        _images.length,
+        isCompleted: isCompleted,
+      );
+    } catch (e) {
+      print('Error saving progress: $e');
     }
   }
 

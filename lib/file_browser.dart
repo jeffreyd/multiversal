@@ -25,6 +25,7 @@ class FileBrowserState extends State<FileBrowser> {
   String? _error;
   ReadStatusService? _readStatusService;
   Map<String, bool> _readStatusCache = {};
+  Map<String, ReadingProgress?> _progressCache = {};
   bool _hideHiddenFiles = true;
 
   @override
@@ -104,9 +105,12 @@ class FileBrowserState extends State<FileBrowser> {
 
     if (comicPaths.isNotEmpty) {
       final readStatusMap = await _readStatusService!.getReadStatusBatch(comicPaths);
+      final progressMap = await _readStatusService!.getReadingProgressBatch(comicPaths);
+
       if (mounted) {
         setState(() {
           _readStatusCache = readStatusMap;
+          _progressCache = progressMap;
         });
       }
     }
@@ -180,7 +184,7 @@ class FileBrowserState extends State<FileBrowser> {
         break;
     }
 
-    return ListTile(
+    final listTile = ListTile(
       leading: Icon(icon, color: iconColor),
       title: Text(
         item.name,
@@ -211,11 +215,35 @@ class FileBrowserState extends State<FileBrowser> {
           ? _buildReadBadge(item)
           : null,
     );
+
+    // Only add swipe gestures for comic books
+    if (item.isComicBook) {
+      return Dismissible(
+        key: Key(item.fullPath),
+        background: _buildSwipeBackground(isLeftSwipe: false), // Right swipe (mark as read)
+        secondaryBackground: _buildSwipeBackground(isLeftSwipe: true), // Left swipe (mark as unread)
+        confirmDismiss: (direction) async {
+          if (direction == DismissDirection.startToEnd) {
+            // Right swipe - mark as read
+            await _markAsRead(item);
+          } else if (direction == DismissDirection.endToStart) {
+            // Left swipe - mark as unread
+            await _markAsUnread(item);
+          }
+          return false; // Don't actually dismiss the item
+        },
+        child: listTile,
+      );
+    }
+
+    return listTile;
   }
 
   Widget _buildReadBadge(FileSystemItem item) {
     final isRead = _readStatusCache[item.fullPath] ?? false;
+    final progress = _progressCache[item.fullPath];
 
+    // If completely read, show read badge
     if (isRead) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -252,9 +280,160 @@ class FileBrowserState extends State<FileBrowser> {
       );
     }
 
+    // If has reading progress, show progress indicator
+    if (progress != null && progress.totalPages > 0) {
+      final progressPercentage = progress.progressPercentage;
+      final currentPage = progress.currentPage + 1; // Display as 1-based
+      final totalPages = progress.totalPages;
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.blue.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '$currentPage/$totalPages',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Container(
+            width: 60,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: progressPercentage.clamp(0.0, 1.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return const SizedBox.shrink();
   }
 
+  /// Build swipe background with visual feedback
+  Widget _buildSwipeBackground({required bool isLeftSwipe}) {
+    return Container(
+      color: isLeftSwipe ? Colors.red.withValues(alpha: 0.8) : Colors.green.withValues(alpha: 0.8),
+      child: Align(
+        alignment: isLeftSwipe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isLeftSwipe ? Icons.remove_circle : Icons.check_circle,
+                color: Colors.white,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isLeftSwipe ? 'Mark Unread' : 'Mark Read',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Mark a comic as read and update UI
+  Future<void> _markAsRead(FileSystemItem item) async {
+    if (_readStatusService == null) return;
+
+    try {
+      // Mark as read in the service
+      await _readStatusService!.markAsRead(item.fullPath);
+
+      // Update local cache and refresh UI
+      setState(() {
+        _readStatusCache[item.fullPath] = true;
+        _progressCache[item.fullPath] = null; // Clear progress since it's completed
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Marked "${item.name}" as read'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error marking as read: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Mark a comic as unread and reset progress
+  Future<void> _markAsUnread(FileSystemItem item) async {
+    if (_readStatusService == null) return;
+
+    try {
+      // Mark as unread in the service (this also clears progress)
+      await _readStatusService!.markAsUnread(item.fullPath);
+
+      // Update local cache and refresh UI
+      setState(() {
+        _readStatusCache[item.fullPath] = false;
+        _progressCache[item.fullPath] = null; // Clear progress
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Marked "${item.name}" as unread'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error marking as unread: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
