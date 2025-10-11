@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Multiversal Comic Reader Icon (Refined Outlined Text)</title>
+  <desc>Comic-page icon with speech bubble "MULTI / VERSAL" rendered as clean, bold, sans-like vector shapes. No fonts required.</desc>
+
+  <!-- Outer rounded square border -->
+  <rect x="32" y="32" width="960" height="960" rx="160" fill="none" stroke="#111111" stroke-width="64" />
+
+  <!-- Panels -->
+  <rect x="140" y="172" width="520" height="340" rx="24" fill="#F2C84C" stroke="#111111" stroke-width="28"/>
+  <rect x="680" y="172" width="204" height="340" rx="24" fill="#5AA8C6" stroke="#111111" stroke-width="28"/>
+  <rect x="140" y="548" width="420" height="304" rx="24" fill="#E24B39" stroke="#111111" stroke-width="28"/>
+  <rect x="580" y="548" width="304" height="304" rx="24" fill="#E9DFC9" stroke="#111111" stroke-width="28"/>
+
+  <!-- Speech bubble -->
+  <g transform="translate(405,378)">
+    <path d="M 0 110
+             C 0 49 49 0 110 0
+             L 390 0
+             C 451 0 500 49 500 110
+             L 500 188
+             C 500 249 451 298 390 298
+             L 252 298
+             L 180 392
+             L 192 298
+             L 110 298
+             C 49 298 0 249 0 188 Z"
+          fill="#FFFFFF" stroke="#111111" stroke-width="22" />
+
+    <!-- TEXT AS SHAPES: baseline y=120 for first row, y=210 for second row -->
+    <g id="row1" transform="translate(40,38)" fill="#111111">
+      <!-- M -->
+      <g transform="translate(0,0)">
+        <rect x="0"  y="0" width="28" height="96" rx="10"/>
+        <rect x="58" y="0" width="28" height="96" rx="10"/>
+        <rect x="0"  y="0" width="86" height="28" rx="14" transform="rotate(62 43 14)"/>
+        <rect x="0"  y="0" width="86" height="28" rx="14" transform="rotate(-62 43 14)"/>
+      </g>
+      <!-- U -->
+      <g transform="translate(110,0)">
+        <rect x="0" y="0" width="28" height="70" rx="10"/>
+        <rect x="58" y="0" width="28" height="70" rx="10"/>
+        <path d="M14,70 a44,44 0 0 0 58,0 v26 a73,73 0 0 1 -86,0 z"/>
+      </g>
+      <!-- L -->
+      <g transform="translate(220,0)">
+        <rect x="0" y="0" width="28" height="96" rx="10"/>
+        <rect x="0" y="68" width="80" height="28" rx="14"/>
+      </g>
+      <!-- T -->
+      <g transform="translate(320,0)">
+        <rect x="0" y="0" width="100" height="28" rx="14"/>
+        <rect x="36" y="0" width="28" height="96" rx="10"/>
+      </g>
+      <!-- I -->
+      <g transform="translate(450,0)">
+        <rect x="0" y="0" width="28" height="96" rx="10"/>
+      </g>
+    </g>
+
+    <g id="row2" transform="translate(40,136)" fill="#111111">
+      <!-- V -->
+      <g transform="translate(0,0)">
+        <rect x="0" y="0" width="28" height="70" rx="10" transform="rotate(16 14 35)"/>
+        <rect x="58" y="0" width="28" height="70" rx="10" transform="rotate(-16 72 35)"/>
+        <rect x="22" y="54" width="42" height="28" rx="14"/>
+      </g>
+      <!-- E -->
+      <g transform="translate(110,0)">
+        <rect x="0" y="0" width="28" height="96" rx="10"/>
+        <rect x="0" y="0" width="80" height="28" rx="14"/>
+        <rect x="0" y="34" width="68" height="26" rx="13"/>
+        <rect x="0" y="68" width="80" height="28" rx="14"/>
+      </g>
+      <!-- R -->
+      <g transform="translate(220,0)">
+        <rect x="0" y="0" width="28" height="96" rx="10"/>
+        <path d="M28,0 h44 a34,34 0 0 1 0,68 h-44 z" />
+        <rect x="28" y="34" width="32" height="26" rx="13"/>
+        <rect x="40" y="60" width="40" height="28" rx="14" transform="rotate(28 60 74)"/>
+      </g>
+      <!-- S -->
+      <g transform="translate(330,0)">
+        <path d="M78,20 a38,28 0 0 0 -38,-20 h-10 a38,28 0 0 0 -30,14 a20,20 0 0 0 34,20
+                 c6,-8 14,-10 24,-10 h6 c10,0 18,2 24,10 a20,20 0 0 1 -4,28
+                 c-8,6 -18,8 -28,8 h-10 c-14,0 -24,6 -30,14 a20,20 0 0 0 34,20
+                 c6,-8 14,-10 24,-10 h10 c18,0 34,-8 44,-20 a36,36 0 0 0 -20,-58z"/>
+      </g>
+      <!-- A -->
+      <g transform="translate(440,0)">
+        <rect x="0" y="20" width="28" height="76" rx="10" transform="rotate(-12 14 58)"/>
+        <rect x="58" y="20" width="28" height="76" rx="10" transform="rotate(12 72 58)"/>
+        <rect x="18" y="50" width="52" height="26" rx="13"/>
+      </g>
+      <!-- L -->
+      <g transform="translate(550,0)">
+        <rect x="0" y="0" width="28" height="96" rx="10"/>
+        <rect x="0" y="68" width="80" height="28" rx="14"/>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Multiversal Comic Reader Icon (Transparent Background)</title>
+  <desc>Comic-page style app icon with speech bubble "MULTI / VERSAL". Transparent background intended for Android app icon usage.</desc>
+
+  <!-- Outer rounded square border -->
+  <rect x="32" y="32" width="960" height="960" rx="160" fill="none" stroke="#111111" stroke-width="64" />
+
+  <!-- Panel group -->
+  <!-- Layout constants: overall inner grid area -->
+  <!-- Top-left (yellow) -->
+  <rect x="140" y="172" width="520" height="340" rx="24" fill="#F2C84C" stroke="#111111" stroke-width="28"/>
+  <!-- Top-right (blue) -->
+  <rect x="680" y="172" width="204" height="340" rx="24" fill="#5AA8C6" stroke="#111111" stroke-width="28"/>
+  <!-- Bottom-left (red) -->
+  <rect x="140" y="548" width="420" height="304" rx="24" fill="#E24B39" stroke="#111111" stroke-width="28"/>
+  <!-- Bottom-right (beige) -->
+  <rect x="580" y="548" width="304" height="304" rx="24" fill="#E9DFC9" stroke="#111111" stroke-width="28"/>
+
+  <!-- Speech bubble (white) -->
+  <g id="bubble" transform="translate(420,390)">
+    <path d="M 0 100
+             C 0 44 44 0 100 0
+             L 360 0
+             C 416 0 460 44 460 100
+             L 460 170
+             C 460 226 416 270 360 270
+             L 235 270
+             L 175 350
+             L 185 270
+             L 100 270
+             C 44 270 0 226 0 170 Z"
+          fill="#FFFFFF" stroke="#111111" stroke-width="20" />
+    <!-- Text inside bubble -->
+    <text x="230" y="112" text-anchor="middle"
+          font-family="Roboto, Noto, Arial, Helvetica, sans-serif"
+          font-size="96" font-weight="900" fill="#111111"
+          letter-spacing="2">MULTI</text>
+    <text x="230" y="198" text-anchor="middle"
+          font-family="Roboto, Noto, Arial, Helvetica, sans-serif"
+          font-size="96" font-weight="900" fill="#111111"
+          letter-spacing="2">VERSAL</text>
+  </g>
+</svg>
