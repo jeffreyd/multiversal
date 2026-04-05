@@ -774,59 +774,6 @@ class _ComicViewerState extends State<ComicViewer>
     );
   }
 
-  Widget _buildTapZones() {
-    // When zoomed or viewing wide image, disable tap zones to allow panning/scrolling
-    if (_isZoomed || _isWideImage) {
-      return const SizedBox.shrink();
-    }
-
-    // Use a GestureDetector that wraps the entire area but only handles taps, not scale
-    return Positioned.fill(
-      child: GestureDetector(
-        behavior: HitTestBehavior.deferToChild,
-        onTapUp: (details) {
-          final screenWidth = MediaQuery.of(context).size.width;
-          final tapX = details.globalPosition.dx;
-
-          if (tapX < screenWidth / 3) {
-            // Left third - previous page
-            if (_currentIndex > 0) {
-              _previousPage();
-            } else {
-              _toggleControls();
-            }
-          } else if (tapX > screenWidth * 2 / 3) {
-            // Right third - next page
-            if (_currentIndex < _images.length - 1) {
-              _nextPage();
-            } else {
-              _toggleControls();
-            }
-          } else {
-            // Center third - toggle controls
-            _toggleControls();
-          }
-        },
-        onDoubleTapDown: (details) {
-          final screenWidth = MediaQuery.of(context).size.width;
-          final tapX = details.globalPosition.dx;
-
-          // Only allow double-tap zoom in center third
-          if (tapX >= screenWidth / 3 && tapX <= screenWidth * 2 / 3) {
-            if (_isZoomed) {
-              _animateToScale(1.0);
-            } else {
-              _animateToScale(2.0);
-            }
-          }
-        },
-        child: Container(
-          color: Colors.transparent,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

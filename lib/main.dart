@@ -105,7 +105,7 @@ class _FolderSelectionPageState extends State<FolderSelectionPage> {
     });
 
     try {
-      String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+      String? selectedDirectory = await FilePicker.getDirectoryPath();
 
       if (selectedDirectory != null) {
         final hasAccess = await FileSystemService.canAccessDirectory(selectedDirectory);
