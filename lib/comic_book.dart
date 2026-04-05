@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:archive/archive_io.dart';
 
@@ -37,6 +36,7 @@ class ComicBook {
   final String filePath;
   final String _fileExtension;
   Archive? _archive;
+  InputFileStream? _fileStream;
   List<ArchiveFile>? _imageFiles;
 
   ComicBook(this.filePath) : _fileExtension = filePath.toLowerCase().split('.').last;
@@ -52,13 +52,12 @@ class ComicBook {
     }
 
     try {
-      final file = File(filePath);
-      // Read file and decode (streaming approach was removed in archive 4.x)
-      final bytes = await file.readAsBytes();
-      _archive = ZipDecoder().decodeBytes(bytes);
-
+      _fileStream = InputFileStream(filePath);
+      _archive = ZipDecoder().decodeStream(_fileStream!);
       return _archive;
     } catch (e) {
+      _fileStream?.closeSync();
+      _fileStream = null;
       throw Exception('Failed to load CBZ archive: $e');
     }
   }
@@ -181,6 +180,8 @@ class ComicBook {
   }
 
   void dispose() {
+    _fileStream?.closeSync();
+    _fileStream = null;
     _archive = null;
     _imageFiles = null;
   }
