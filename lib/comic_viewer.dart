@@ -31,6 +31,8 @@ class _ComicViewerState extends State<ComicViewer>
   ScrollController? _horizontalScrollController;
   Timer? _progressSaveTimer;
   bool _hasLoadedInitialProgress = false;
+  Uint8List? _currentImageData;
+  Object? _currentImageError;
 
   late AnimationController _controlsAnimationController;
   late Animation<double> _controlsAnimation;
@@ -92,6 +94,26 @@ class _ComicViewerState extends State<ComicViewer>
     super.dispose();
   }
 
+  void _loadCurrentPageData() {
+    if (_images.isEmpty) return;
+    final index = _currentIndex;
+    _images[index].data.then((data) {
+      if (mounted && _currentIndex == index) {
+        setState(() {
+          _currentImageData = data;
+          _currentImageError = null;
+        });
+      }
+    }).catchError((Object e) {
+      if (mounted && _currentIndex == index) {
+        setState(() {
+          _currentImageData = null;
+          _currentImageError = e;
+        });
+      }
+    });
+  }
+
   Future<void> _loadComicBook() async {
     try {
       final images = await _comicBook.images;
@@ -105,7 +127,8 @@ class _ComicViewerState extends State<ComicViewer>
         // Restore reading progress
         await _loadInitialProgress();
 
-        // Start preloading for the first few pages
+        // Load first page data and start preloading
+        _loadCurrentPageData();
         _triggerPreload();
       }
     } catch (e) {
@@ -135,6 +158,7 @@ class _ComicViewerState extends State<ComicViewer>
       setState(() {
         _currentIndex++;
       });
+      _loadCurrentPageData();
       _animateToScale(1.0); // Reset zoom when changing pages
       _analyzeImageDimensions(); // Check if new image is wide
       _triggerPreload();
@@ -148,6 +172,7 @@ class _ComicViewerState extends State<ComicViewer>
       setState(() {
         _currentIndex--;
       });
+      _loadCurrentPageData();
       _animateToScale(1.0); // Reset zoom when changing pages
       _analyzeImageDimensions(); // Check if new image is wide
       _triggerPreload();
@@ -160,6 +185,7 @@ class _ComicViewerState extends State<ComicViewer>
       setState(() {
         _currentIndex = index;
       });
+      _loadCurrentPageData();
       _animateToScale(1.0); // Reset zoom when changing pages
       _analyzeImageDimensions(); // Check if new image is wide
       _triggerPreload();
@@ -285,84 +311,69 @@ class _ComicViewerState extends State<ComicViewer>
   Widget _buildImageViewer() {
     if (_images.isEmpty) return const SizedBox.shrink();
 
-    return FutureBuilder<Uint8List>(
-      future: _images[_currentIndex].data,
-      builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          // Analyze image first
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _analyzeImageDimensions();
-          });
-
-          // Build appropriate viewer based on image type
-          if (_isWideImage) {
-            return _buildWideImageViewer(snapshot.data!);
-          } else {
-            return _buildNormalImageViewer(snapshot.data!);
-          }
-        } else if (snapshot.hasError) {
-          return Center(
-            child: Column(
+    if (_currentImageError != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.broken_image, size: 64, color: Colors.white70),
+            const SizedBox(height: 16),
+            const Text(
+              'Failed to load image',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Page ${_currentIndex + 1} of ${_images.length}',
+              style: const TextStyle(color: Colors.white54),
+            ),
+            const SizedBox(height: 16),
+            Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.broken_image,
-                  size: 64,
-                  color: Colors.white70,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Failed to load image',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                if (_currentIndex > 0)
+                  ElevatedButton.icon(
+                    onPressed: _previousPage,
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('Previous'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                      foregroundColor: Colors.white,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Page ${_currentIndex + 1} of ${_images.length}',
-                  style: TextStyle(color: Colors.white54),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (_currentIndex > 0)
-                      ElevatedButton.icon(
-                        onPressed: _previousPage,
-                        icon: Icon(Icons.arrow_back),
-                        label: Text('Previous'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white24,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    const SizedBox(width: 16),
-                    if (_currentIndex < _images.length - 1)
-                      ElevatedButton.icon(
-                        onPressed: _nextPage,
-                        icon: Icon(Icons.arrow_forward),
-                        label: Text('Next'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white24,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                  ],
-                ),
+                const SizedBox(width: 16),
+                if (_currentIndex < _images.length - 1)
+                  ElevatedButton.icon(
+                    onPressed: _nextPage,
+                    icon: const Icon(Icons.arrow_forward),
+                    label: const Text('Next'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
               ],
             ),
-          );
-        } else {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: Colors.white70,
-            ),
-          );
-        }
-      },
-    );
+          ],
+        ),
+      );
+    }
+
+    if (_currentImageData == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white70),
+      );
+    }
+
+    if (_isWideImage) {
+      return _buildWideImageViewer(_currentImageData!);
+    } else {
+      return _buildNormalImageViewer(_currentImageData!);
+    }
   }
 
   Widget _buildNormalImageViewer(Uint8List imageData) {
