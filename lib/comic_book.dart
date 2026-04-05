@@ -102,11 +102,12 @@ class ComicBook {
     return _imageFiles!;
   }
 
+  static final _naturalSortRegex = RegExp(r'(\d+)');
+
   // OPTIMIZATION 5: Better natural sorting algorithm
   int _naturalCompare(String a, String b) {
-    final regex = RegExp(r'(\d+)');
-    final aMatches = regex.allMatches(a.toLowerCase()).toList();
-    final bMatches = regex.allMatches(b.toLowerCase()).toList();
+    final aMatches = _naturalSortRegex.allMatches(a.toLowerCase()).toList();
+    final bMatches = _naturalSortRegex.allMatches(b.toLowerCase()).toList();
 
     for (int i = 0; i < aMatches.length && i < bMatches.length; i++) {
       final aNum = int.parse(aMatches[i].group(0)!);

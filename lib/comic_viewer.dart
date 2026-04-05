@@ -33,9 +33,11 @@ class _ComicViewerState extends State<ComicViewer>
   bool _hasLoadedInitialProgress = false;
   Uint8List? _currentImageData;
   Object? _currentImageError;
+  bool _isPinching = false;
 
   late AnimationController _controlsAnimationController;
   late Animation<double> _controlsAnimation;
+  late AnimationController _scaleAnimationController;
 
   final TransformationController _transformationController =
       TransformationController();
@@ -55,6 +57,11 @@ class _ComicViewerState extends State<ComicViewer>
       curve: Curves.easeInOut,
     );
 
+    _scaleAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
     // Listen to transformation changes to track zoom level
     _transformationController.addListener(_onTransformationChanged);
 
@@ -66,13 +73,12 @@ class _ComicViewerState extends State<ComicViewer>
   }
 
   void _onTransformationChanged() {
-    final Matrix4 matrix = _transformationController.value;
-    final double scale = matrix.getMaxScaleOnAxis();
-
-    if (mounted && scale != _currentScale) {
+    final double scale = _transformationController.value.getMaxScaleOnAxis();
+    final bool zoomed = scale > 1.1;
+    _currentScale = scale;
+    if (mounted && zoomed != _isZoomed) {
       setState(() {
-        _currentScale = scale;
-        _isZoomed = scale > 1.1; // Consider zoomed if > 110%
+        _isZoomed = zoomed;
       });
     }
   }
@@ -87,6 +93,7 @@ class _ComicViewerState extends State<ComicViewer>
     _horizontalScrollController?.dispose();
     _comicBook.dispose();
     _controlsAnimationController.dispose();
+    _scaleAnimationController.dispose();
     _transformationController.dispose();
 
     // Restore system UI
@@ -199,22 +206,15 @@ class _ComicViewerState extends State<ComicViewer>
 
     if ((scale - currentScale).abs() < 0.1) return; // Already at target scale
 
-    // Create transformation matrix for the new scale
     final Matrix4 targetMatrix = Matrix4.identity();
-    targetMatrix.setEntry(0, 0, scale); // Scale X
-    targetMatrix.setEntry(1, 1, scale); // Scale Y
-
-    // Animate to the new transformation
-    final AnimationController scaleController = AnimationController(
-      duration: const Duration(milliseconds: 200),
-      vsync: this,
-    );
+    targetMatrix.setEntry(0, 0, scale);
+    targetMatrix.setEntry(1, 1, scale);
 
     final Animation<Matrix4> scaleAnimation = Matrix4Tween(
       begin: _transformationController.value,
       end: targetMatrix,
     ).animate(CurvedAnimation(
-      parent: scaleController,
+      parent: _scaleAnimationController,
       curve: Curves.easeInOut,
     ));
 
@@ -222,9 +222,7 @@ class _ComicViewerState extends State<ComicViewer>
       _transformationController.value = scaleAnimation.value;
     });
 
-    scaleController.forward().then((_) {
-      scaleController.dispose();
-    });
+    _scaleAnimationController.forward(from: 0.0);
   }
 
   Future<void> _initReadStatusService() async {
@@ -417,6 +415,12 @@ class _ComicViewerState extends State<ComicViewer>
         maxScale: 4.0,
         panEnabled: true,
         scaleEnabled: true,
+        onInteractionStart: (details) {
+          if (details.pointerCount >= 2) setState(() => _isPinching = true);
+        },
+        onInteractionEnd: (_) {
+          if (_isPinching) setState(() => _isPinching = false);
+        },
         child: Container(
           width: double.infinity,
           height: double.infinity,
@@ -424,7 +428,7 @@ class _ComicViewerState extends State<ComicViewer>
           child: Image.memory(
             imageData,
             fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
+            filterQuality: _isPinching ? FilterQuality.low : FilterQuality.high,
             errorBuilder: (context, error, stackTrace) {
             return Center(
               child: Column(
@@ -500,10 +504,16 @@ class _ComicViewerState extends State<ComicViewer>
           maxScale: 4.0,
           panEnabled: false, // Disable pan for wide images to avoid conflict with scrolling
           scaleEnabled: true,
+          onInteractionStart: (details) {
+            if (details.pointerCount >= 2) setState(() => _isPinching = true);
+          },
+          onInteractionEnd: (_) {
+            if (_isPinching) setState(() => _isPinching = false);
+          },
           child: Image.memory(
             imageData,
             fit: BoxFit.fitHeight, // Fit to screen height, allow horizontal scrolling
-            filterQuality: FilterQuality.high,
+            filterQuality: _isPinching ? FilterQuality.low : FilterQuality.high,
             errorBuilder: (context, error, stackTrace) {
               return Center(
                 child: Column(
